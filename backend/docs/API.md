@@ -22,6 +22,36 @@ Useful for liveness probes and smoke tests.
 ## Meetings
 Create a meeting by supplying either a transcript (JSON) or an audio upload (multipart). Every meeting immediately receives an ID; keep polling until `status` is `done`.
 
+### List Meetings
+```bash
+curl http://127.0.0.1:5000/meetings?limit=20
+```
+**200 Response**
+```json
+[
+  {
+    "id": 12,
+    "title": "Weekly Sync",
+    "status": "done",
+    "created_at": "2025-11-15T16:05:27.752506",
+    "transcript": "...",
+    "summary": "This video offers practical insights...",
+    "audio_url": null,
+    "source_agent": "dashboard",
+    "action_items": [
+      {
+        "id": 42,
+        "description": "Fix the issue where the name is incorrect...",
+        "owner": null,
+        "due_date": null,
+        "status": "todo"
+      }
+    ]
+  }
+]
+```
+Use the optional `limit` query param to restrict the number of records returned.
+
 ### JSON Transcript Upload
 ```bash
 curl -X POST http://127.0.0.1:5000/meetings \

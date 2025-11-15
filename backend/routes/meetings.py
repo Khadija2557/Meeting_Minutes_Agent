@@ -33,11 +33,28 @@ def _meeting_payload(meeting: Meeting) -> dict:
     }
 
 
+@meetings_bp.route("/meetings", methods=["GET"])
+def list_meetings():
+    session = SessionLocal()
+    try:
+        query = session.query(Meeting).order_by(Meeting.created_at.desc())
+        limit = request.args.get("limit", type=int)
+        if limit:
+            query = query.limit(limit)
+        meetings = query.all()
+        return jsonify([_meeting_payload(meeting) for meeting in meetings]), 200
+    finally:
+        session.close()
+
+
 @meetings_bp.route("/meetings", methods=["POST"])
 def create_meeting():
     session = SessionLocal()
     try:
-        payload = request.get_json(silent=True) or {}
+        payload = request.get_json(silent=True)
+        if payload is None and request.form:
+            payload = request.form.to_dict()
+        payload = payload or {}
         audio_file = request.files.get("audio") if request.files else None
         audio_path = None
         if audio_file:
