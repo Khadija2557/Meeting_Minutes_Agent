@@ -1,0 +1,241 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 15%;
+
+    --card: 0 0% 99%;
+    --card-foreground: 240 10% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 15%;
+
+    --primary: 280 90% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 200 95% 55%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+
+    --accent: 330 90% 65%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 280 90% 60%;
+
+    --success: 142 80% 50%;
+    --warning: 45 98% 52%;
+    --error: 0 84% 60%;
+
+    --pink: 330 90% 65%;
+    --blue: 200 95% 55%;
+    --purple: 280 90% 60%;
+    --light-green: 142 80% 60%;
+    --light-yellow: 48 98% 70%;
+
+    --radius: 1rem;
+
+    --glow-pink: 330 90% 65%;
+    --glow-blue: 200 95% 55%;
+    --glow-purple: 280 90% 60%;
+    --glow-green: 142 80% 60%;
+    --glow-yellow: 48 98% 70%;
+
+    --gradient-cosmic: linear-gradient(135deg, hsl(280 90% 80%), hsl(200 95% 80%));
+    --gradient-neon: linear-gradient(90deg, hsl(330 90% 65%), hsl(280 90% 60%), hsl(200 95% 55%));
+    --gradient-rainbow: linear-gradient(135deg, hsl(330 90% 65%), hsl(280 90% 60%), hsl(200 95% 55%), hsl(142 80% 60%), hsl(48 98% 70%));
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(280 90% 97%));
+
+    --shadow-glow: 0 8px 32px hsl(var(--glow-purple) / 0.2);
+    --shadow-glow-strong: 0 12px 48px hsl(var(--glow-purple) / 0.35);
+    --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.08);
+    --shadow-colorful: 0 8px 32px rgba(200, 100, 255, 0.15);
+
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-page: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --page-transition-duration: 300ms;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background: linear-gradient(135deg, hsl(330 90% 97%), hsl(280 90% 96%), hsl(200 95% 96%), hsl(48 98% 95%));
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  .glow-pink {
+    box-shadow: 0 0 24px hsl(var(--glow-pink) / 0.5);
+  }
+  
+  .glow-blue {
+    box-shadow: 0 0 24px hsl(var(--glow-blue) / 0.5);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 24px hsl(var(--glow-purple) / 0.5);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 24px hsl(var(--glow-green) / 0.5);
+  }
+
+  .glow-yellow {
+    box-shadow: 0 0 24px hsl(var(--glow-yellow) / 0.5);
+  }
+
+  .glow-rainbow {
+    box-shadow: 0 0 30px hsl(var(--glow-pink) / 0.4), 0 0 40px hsl(var(--glow-blue) / 0.3), 0 0 50px hsl(var(--glow-purple) / 0.3);
+  }
+
+  .border-glow-pink {
+    border: 2px solid hsl(var(--pink) / 0.4);
+    box-shadow: 0 0 20px hsl(var(--glow-pink) / 0.4), inset 0 0 20px hsl(var(--glow-pink) / 0.1);
+  }
+
+  .border-glow-blue {
+    border: 2px solid hsl(var(--blue) / 0.4);
+    box-shadow: 0 0 20px hsl(var(--glow-blue) / 0.4), inset 0 0 20px hsl(var(--glow-blue) / 0.1);
+  }
+
+  .border-glow-purple {
+    border: 2px solid hsl(var(--purple) / 0.4);
+    box-shadow: 0 0 20px hsl(var(--glow-purple) / 0.4), inset 0 0 20px hsl(var(--glow-purple) / 0.1);
+  }
+
+  .border-glow-green {
+    border: 2px solid hsl(var(--light-green) / 0.4);
+    box-shadow: 0 0 20px hsl(var(--glow-green) / 0.4), inset 0 0 20px hsl(var(--glow-green) / 0.1);
+  }
+
+  .border-glow-yellow {
+    border: 2px solid hsl(var(--light-yellow) / 0.4);
+    box-shadow: 0 0 20px hsl(var(--glow-yellow) / 0.4), inset 0 0 20px hsl(var(--glow-yellow) / 0.1);
+  }
+
+  .gradient-text {
+    background: var(--gradient-neon);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .floating-animation {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 25px hsl(var(--glow-purple) / 0.4), 0 0 40px hsl(var(--glow-pink) / 0.3);
+    }
+    50% {
+      box-shadow: 0 0 45px hsl(var(--glow-purple) / 0.6), 0 0 60px hsl(var(--glow-pink) / 0.4);
+    }
+  }
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: shimmer 2s infinite;
+  }
+
+  @keyframes shimmer {
+    100% {
+      left: 100%;
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes progressFill {
+    0% {
+      width: 0%;
+    }
+    100% {
+      width: 100%;
+    }
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .page-transition {
+    animation: fadeIn 300ms ease-out;
+  }
+
+  .slide-in {
+    animation: slideIn 300ms ease-out;
+  }
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+}
