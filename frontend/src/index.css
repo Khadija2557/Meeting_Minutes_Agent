@@ -238,6 +238,24 @@ All colors MUST be HSL.
     animation: slideIn 300ms ease-out;
   }
 
+  @keyframes alexBeamPulse {
+    0%, 100% { transform: scale(0.95); opacity: 0.6; }
+    50% { transform: scale(1.05); opacity: 0.9; }
+  }
+
+  .animate-alex-beam {
+    animation: alexBeamPulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+  }
+
+  .animate-breathe {
+    animation: breathe 2.8s ease-in-out infinite;
+  }
+
   .animate-spin {
     animation: spin 1s linear infinite;
   }

@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import alexAvatar from "@/assets/alex-avatar.png";
+import alexAvatar from "@/assets/meeting-followup-agent.png";
 
 export default function AlexAgent() {
   const navigate = useNavigate();

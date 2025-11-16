@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
   Upload,
@@ -16,16 +17,15 @@ import {
   Users,
   Loader2,
   CheckCircle2,
+  Mic,
+  Square,
 } from "lucide-react";
 import { toast } from "sonner";
-import alexAvatar from "@/assets/alex-avatar.png";
+import alexAvatar from "@/assets/meeting-followup-agent.png";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
-<<<<<<< HEAD
 import { useSpeechToText } from "@/hooks/useSpeechToText";
-=======
 import { createMeeting, fetchMeeting } from "@/lib/api";
 import { MEETINGS_QUERY_KEY } from "@/hooks/useMeetingsQuery";
->>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
 
 interface Participant {
   id: string;
@@ -73,7 +73,6 @@ export default function ProcessMeeting() {
     resetRecording,
   } = useAudioRecorder();
 
-<<<<<<< HEAD
   // Browser Speech-to-Text (Web Speech API)
   const {
     supported: sttSupported,
@@ -85,7 +84,7 @@ export default function ProcessMeeting() {
     reset: resetStt,
     isListening,
   } = useSpeechToText();
-=======
+
   const updateStatusIndicators = useCallback((status: string) => {
     setMeetingStatus(status);
     const stepIndex = processingSteps.findIndex((step) => step.key === status);
@@ -153,7 +152,6 @@ export default function ProcessMeeting() {
       setCurrentStepIndex(0);
     },
   });
->>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
 
   const addParticipant = () => {
     setParticipants([
@@ -289,7 +287,7 @@ export default function ProcessMeeting() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/alex")}
+            onClick={() => navigate("/alex/dashboard")}
             className="hover:glow-cyan"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -337,8 +335,6 @@ export default function ProcessMeeting() {
                 className="border-glow-pink focus:border-glow-yellow"
               />
             </div>
-
-            {/* Audio File Upload */}
 
             {/* Live Speech-to-Text */}
             <div className="space-y-2">

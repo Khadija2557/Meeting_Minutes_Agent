@@ -20,7 +20,7 @@ import {
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
-import alexAvatar from "@/assets/alex-avatar.png";
+import alexAvatar from "@/assets/meeting-followup-agent.png";
 import { fetchMeeting } from "@/lib/api";
 import type { ActionItem, Meeting } from "@/types/api";
 

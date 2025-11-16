@@ -29,7 +29,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
-import alexAvatar from "@/assets/alex-avatar.png";
+import meetingFollowupAvatar from "@/assets/meeting-followup-agent.png";
 import { useMeetingsQuery } from "@/hooks/useMeetingsQuery";
 import type { ActionItem as BackendActionItem } from "@/types/api";
 
@@ -143,7 +143,7 @@ export default function ActionItems() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/alex")}
+            onClick={() => navigate("/alex/dashboard")}
             className="hover:glow-cyan"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -151,7 +151,7 @@ export default function ActionItems() {
 
           <div className="flex items-center gap-4 flex-1">
             <div className="w-12 h-12 rounded-full overflow-hidden bg-muted">
-              <img src={alexAvatar} alt="Alex" className="w-full h-full object-cover" />
+              <img src={meetingFollowupAvatar} alt="Alex" className="w-full h-full object-cover" />
             </div>
             <div>
               <h1 className="text-2xl font-bold">Action Items</h1>

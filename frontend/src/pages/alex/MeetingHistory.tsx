@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowLeft, Search, Calendar, Clock, CheckCircle2, RefreshCw } from "lucide-react";
-import alexAvatar from "@/assets/alex-avatar.png";
+import alexAvatar from "@/assets/meeting-followup-agent.png";
 import { useMeetingsQuery } from "@/hooks/useMeetingsQuery";
 import type { Meeting } from "@/types/api";
 
@@ -78,7 +78,7 @@ export default function MeetingHistory() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/alex")}
+            onClick={() => navigate("/alex/dashboard")}
             className="hover:glow-cyan"
           >
             <ArrowLeft className="w-5 h-5" />

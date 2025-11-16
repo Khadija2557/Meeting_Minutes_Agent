@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import { useEffect, useState } from "react";
-=======
-import { useMemo, useState } from "react";
->>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -21,102 +17,27 @@ import {
   ListTodo,
   Settings,
   Calendar,
-  TrendingUp,
   RefreshCw,
   Loader2,
+  TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
-import alexAvatar from "@/assets/alex-avatar.png";
-<<<<<<< HEAD
-import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Cell, LabelList, ResponsiveContainer } from "recharts";
-
-function WeeklyCompletedBarChart() {
-  // Example weekly completed items; in real app, source from data/store
-  const baseData = [
-    { key: "mon", name: "Mon", value: 5 },
-    { key: "tue", name: "Tue", value: 7 },
-    { key: "wed", name: "Wed", value: 4 },
-    { key: "thu", name: "Thu", value: 9 },
-    { key: "fri", name: "Fri", value: 6 },
-    { key: "sat", name: "Sat", value: 3 },
-    { key: "sun", name: "Sun", value: 2 },
-  ];
-
-  const [data, setData] = useState(
-    baseData.map((d) => ({ ...d, animatedValue: 0 }))
-  );
-
-  // Smooth sequential animation: grow each bar from 0 to target, one-by-one
-  useEffect(() => {
-    let cancelled = false;
-
-    const animateBar = (index: number, target: number, duration = 700) =>
-      new Promise<void>((resolve) => {
-        const start = performance.now();
-        const tick = (now: number) => {
-          if (cancelled) return;
-          const t = Math.min(1, (now - start) / duration);
-          // ease-out for smoother end
-          const eased = 1 - Math.pow(1 - t, 4);
-          const value = Math.round(target * eased);
-          setData((prev) => {
-            const next = [...prev];
-            next[index] = { ...next[index], animatedValue: value };
-            return next;
-          });
-          if (t < 1) {
-            requestAnimationFrame(tick);
-          } else {
-            resolve();
-          }
-        };
-        requestAnimationFrame(tick);
-      });
-
-    const run = async () => {
-      for (let i = 0; i < baseData.length; i++) {
-        await animateBar(i, baseData[i].value, 450);
-      }
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const pastel: Record<string, string> = {
-    mon: "#93c5fd", // light blue
-    tue: "#f8b4d9", // light pink
-    wed: "#d8b4fe", // light purple
-    thu: "#86efac", // light green
-    fri: "#93c5fd",
-    sat: "#f8b4d9",
-    sun: "#d8b4fe",
-  };
-
-  return (
-    <ResponsiveContainer width="100%" height={256}>
-      <BarChart data={data} margin={{ top: 10, right: 20, left: 20, bottom: 0 }} barCategoryGap="18%" barGap={4}>
-        <CartesianGrid vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
-      <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--muted-foreground))" }} padding={{ left: 20, right: 20 }} interval={0} />
-      <YAxis tickLine={false} axisLine={false} tick={false} allowDecimals={false} domain={[0, "dataMax + 2"]} />
-      <Bar dataKey="animatedValue" radius={[6, 6, 0, 0]} isAnimationActive={false}>
-        {data.map((d) => (
-          <Cell key={d.key} fill={pastel[d.key] || "#93c5fd"} />
-        ))}
-        <LabelList
-          dataKey="animatedValue"
-          position="top"
-          formatter={(value: number) => (Number(value) > 0 ? value : "")}
-          style={{ fill: "hsl(var(--foreground))", fontSize: 12 }}
-        />
-      </Bar>
-    </BarChart>
-    </ResponsiveContainer>
-  );
-}
+import alexAvatar from "@/assets/meeting-followup-agent.png";
+import { useMeetingsQuery } from "@/hooks/useMeetingsQuery";
+import { runFollowupAgent } from "@/lib/api";
+import type { FollowupResponse } from "@/types/api";
+import {
+ BarChart as ReBarChart,
+ Bar,
+ XAxis,
+ YAxis,
+ CartesianGrid,
+ ResponsiveContainer,
+ LabelList,
+ Cell,
+ Tooltip,
+} from "recharts";
+import { useRef } from "react";
 
 function AlexHiGreeting() {
   const [visible, setVisible] = useState(false);
@@ -141,11 +62,6 @@ function AlexHiGreeting() {
     </div>
   );
 }
-=======
-import { useMeetingsQuery } from "@/hooks/useMeetingsQuery";
-import { runFollowupAgent } from "@/lib/api";
-import type { FollowupResponse } from "@/types/api";
->>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
 
 export default function AlexDashboard() {
   const navigate = useNavigate();
@@ -167,6 +83,80 @@ export default function AlexDashboard() {
   }, [meetingList]);
 
   const recentMeetings = meetingList.slice(0, 3);
+
+ 
+  // Weekly completed action items (current week Mon-Sun)
+  const { weeklyChartData, allZero } = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay(); // 0 (Sun) - 6 (Sat)
+    const diffToMonday = (day + 6) % 7; // converts Sun(0) -> 6, Mon(1)->0
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diffToMonday);
+    monday.setHours(0, 0, 0, 0);
+
+    const days: Date[] = [...Array(7)].map((_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return d;
+    });
+
+    const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    // Calculate actual completed action items for each day
+    const values = days.map((d) => {
+      const start = new Date(d);
+      const end = new Date(d);
+      end.setDate(d.getDate() + 1);
+      
+      let count = 0;
+      for (const m of meetingList) {
+        for (const ai of m.action_items) {
+          const status = (ai.status || "").toLowerCase();
+          const isCompleted = status.includes("done") || status.includes("complete");
+          if (isCompleted) {
+            // Use the meeting creation date as a fallback since completed_date doesn't exist
+            const completionDate = new Date(m.created_at);
+            if (completionDate >= start && completionDate < end) {
+              count++;
+            }
+          }
+        }
+      }
+      return count;
+    });
+
+    const data = labels.map((label, idx) => ({ day: label, value: values[idx] }));
+    const allZero = values.every(v => v === 0);
+
+    return { weeklyChartData: data, allZero };
+  }, [meetingList]);
+
+  // Sequential animation on first mount (Mon -> Sun)
+  const [animatedData, setAnimatedData] = useState(weeklyChartData.map((d) => ({ ...d, value: 0 })));
+  const hasAnimatedRef = useRef(false);
+  useEffect(() => {
+    if (hasAnimatedRef.current) {
+      // Do not re-run animation on subsequent renders; keep final values
+      setAnimatedData(weeklyChartData);
+      return;
+    }
+    hasAnimatedRef.current = true;
+    // Reset to zeros, then grow each bar with a staggered delay
+    setAnimatedData(weeklyChartData.map((d) => ({ ...d, value: 0 })));
+    const timers: number[] = [];
+    weeklyChartData.forEach((d, idx) => {
+      const t = window.setTimeout(() => {
+        setAnimatedData((prev) => {
+          const next = [...prev];
+          next[idx] = { ...next[idx], value: d.value };
+          return next;
+        });
+      }, idx * 240); // smooth stagger
+      timers.push(t);
+    });
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [weeklyChartData]);
+
   const formatRecentDate = (value: string) =>
     new Date(value).toLocaleDateString(undefined, {
       month: "short",
@@ -200,7 +190,7 @@ export default function AlexDashboard() {
   };
 
   const menuItems = [
-    { label: "Dashboard", path: "/alex" },
+    { label: "Dashboard", path: "/alex/dashboard" },
     { label: "Process Meeting", path: "/alex/process-meeting" },
     { label: "History", path: "/alex/history" },
     { label: "Action Items", path: "/alex/action-items" },
@@ -321,105 +311,132 @@ export default function AlexDashboard() {
           </Button>
         </div>
 
-<<<<<<< HEAD
-        {/* Analytics + Recent Meetings */}
+        {/* Top Row: Instant Follow-up (left) + Weekly Completed (right) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Analytics */}
-          <Card className="p-5 border-glow-green transition-all duration-500 slide-in" style={{ animationDelay: "180ms" }}>
-            <h2 className="text-lg font-semibold text-black mb-4">Weekly Completed Action Items</h2>
-            <div className="grid grid-cols-1 gap-4 items-center">
-              <div className="h-64 min-h-[256px] w-full">
-                {/* Sequential animation via staged data values */}
-                <WeeklyCompletedBarChart />
+          {/* Instant Follow-up (left) */}
+          <Card className="p-5 border-glow-green hover:border-glow-blue transition-all duration-500 slide-in" style={{ animationDelay: "150ms" }}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold">Instant Follow-up</h2>
+                <p className="text-sm text-muted-foreground">Paste a transcript and let Alex summarize it without saving to history.</p>
               </div>
             </div>
-          </Card>
-
-          {/* Recent Meetings */}
-          <Card className="p-5 border-glow-pink hover:border-glow-blue transition-all duration-500 slide-in" style={{ animationDelay: "200ms" }}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold text-black flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-primary" />
-                Recent Meetings
-              </h2>
+            <Textarea
+              placeholder="Paste transcript text here..."
+              value={followupTranscript}
+              onChange={(e) => setFollowupTranscript(e.target.value)}
+              className="min-h-[140px]"
+            />
+            <div className="flex flex-wrap gap-3 mt-4">
+              <Button
+                onClick={handleFollowup}
+                disabled={followupMutation.isPending || !followupTranscript.trim()}
+                className="flex items-center gap-2"
+              >
+                {followupMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analyzing
+                  </>
+                ) : (
+                  "Generate Summary"
+                )}
+              </Button>
               <Button
                 variant="outline"
-                size="sm"
-                onClick={() => navigate("/alex/history")}
-                className="hover:border-primary hover:text-primary transition-all"
+                onClick={clearFollowup}
+                disabled={!followupTranscript && !followupResult}
               >
-                View All
+                Clear
               </Button>
             </div>
-
-=======
-        <Card className="p-5 border-glow-green hover:border-glow-blue transition-all duration-500 slide-in" style={{ animationDelay: "150ms" }}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-bold">Instant Follow-up</h2>
-              <p className="text-sm text-muted-foreground">Paste a transcript and let Alex summarize it without saving to history.</p>
-            </div>
-          </div>
-          <Textarea
-            placeholder="Paste transcript text here..."
-            value={followupTranscript}
-            onChange={(e) => setFollowupTranscript(e.target.value)}
-            className="min-h-[140px]"
-          />
-          <div className="flex flex-wrap gap-3 mt-4">
-            <Button
-              onClick={handleFollowup}
-              disabled={followupMutation.isPending || !followupTranscript.trim()}
-              className="flex items-center gap-2"
-            >
-              {followupMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing
-                </>
-              ) : (
-                "Generate Summary"
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={clearFollowup}
-              disabled={!followupTranscript && !followupResult}
-            >
-              Clear
-            </Button>
-          </div>
-          {followupResult && (
-            <div className="mt-6 space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold mb-2">Summary</h3>
-                <p className="text-muted-foreground whitespace-pre-wrap">{followupResult.summary}</p>
+            {followupResult && (
+              <div className="mt-6 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold mb-2">Summary</h3>
+                  <p className="text-muted-foreground whitespace-pre-wrap">{followupResult.summary}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold mb-2">Action Items</h3>
+                  {followupResult.action_items.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No action items detected.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {followupResult.action_items.map((item, idx) => (
+                        <Card key={`${item.description}-${idx}`} className="p-3 border-glow-purple">
+                          <p className="font-medium text-sm">{item.description}</p>
+                          <div className="text-xs text-muted-foreground flex flex-wrap gap-3 mt-1">
+                            {item.owner && <span>Owner: {item.owner}</span>}
+                            {item.due_date && <span>Due: {item.due_date}</span>}
+                            <span>Status: {item.status}</span>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-semibold mb-2">Action Items</h3>
-                {followupResult.action_items.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">No action items detected.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {followupResult.action_items.map((item, idx) => (
-                      <Card key={`${item.description}-${idx}`} className="p-3 border-glow-purple">
-                        <p className="font-medium text-sm">{item.description}</p>
-                        <div className="text-xs text-muted-foreground flex flex-wrap gap-3 mt-1">
-                          {item.owner && <span>Owner: {item.owner}</span>}
-                          {item.due_date && <span>Due: {item.due_date}</span>}
-                          <span>Status: {item.status}</span>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </Card>
+            )}
+          </Card>
 
-        {/* Recent Meetings */}
-        <Card className="p-5 border-glow-pink hover:border-glow-blue transition-all duration-500 slide-in" style={{ animationDelay: "200ms" }}>
+          {/* Weekly Completed (right) */}
+          <Card className="p-5 border-glow-blue hover:border-glow-green transition-all duration-500 slide-in" style={{ animationDelay: "220ms" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                Weekly Completed Action Items
+              </h2>
+            </div>
+            {allZero && (
+              <div className="text-xs text-muted-foreground mb-2">No completed action items recorded this week yet.</div>
+            )}
+            
+
+            <div className="h-[240px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ReBarChart data={animatedData} margin={{ left: 4, right: 4, top: 8, bottom: 0 }} barCategoryGap="20%" barGap={4}>
+                    <defs>
+                      <linearGradient id="grad-blue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#60a5fa" />
+                        <stop offset="100%" stopColor="#bfdbfe" />
+                      </linearGradient>
+                      <linearGradient id="grad-pink" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f472b6" />
+                        <stop offset="100%" stopColor="#fbcfe8" />
+                      </linearGradient>
+                      <linearGradient id="grad-green" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#4ade80" />
+                        <stop offset="100%" stopColor="#bbf7d0" />
+                      </linearGradient>
+                      <linearGradient id="grad-purple" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#a78bfa" />
+                        <stop offset="100%" stopColor="#e9d5ff" />
+                      </linearGradient>
+                    </defs>
+                      <XAxis dataKey="day" axisLine={false} tickLine={false} padding={{ left: 28, right: 28 }} />
+                    <YAxis hide />
+                    <Tooltip cursor={false} />
+
+                    {/* Multiple series (one per day) to enable staggered animation per bar */}
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]} isAnimationActive animationDuration={600} animationEasing="ease-out" minPointSize={2}>
+                      {animatedData.map((_, idx) => (
+                        <Cell
+                          key={`cell-${idx}`}
+                          fill={idx % 4 === 0 ? "#79b5fb" : idx % 4 === 1 ? "#f68dc5" : idx % 4 === 2 ? "#68e696" : "#bfa0fc"}
+                        />
+                      ))}
+                      <LabelList dataKey="value" position="top" className="fill-foreground text-[11px]" formatter={(v: number) => (v > 0 ? v : "")} />
+                    </Bar>
+                  </ReBarChart>
+                </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
+
+        {/* Bottom Section: Recent Meetings (full width) */}
+        <div className="grid grid-cols-1 gap-4">
+        {/* Recent Meetings (left) */}
+        <Card className="p-5 border-glow-pink hover:border-glow-blue transition-all duration-500 slide-in" style={{ animationDelay: "180ms" }}>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
@@ -448,7 +465,6 @@ export default function AlexDashboard() {
           ) : recentMeetings.length === 0 ? (
             <div className="p-6 text-center text-muted-foreground">No meetings processed yet.</div>
           ) : (
->>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
             <ScrollArea className="h-[280px]">
               <div className="space-y-3">
                 {recentMeetings.map((meeting, index) => (
@@ -465,43 +481,27 @@ export default function AlexDashboard() {
                         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-<<<<<<< HEAD
-                            {meeting.date}
-                          </span>
-                          <span>{meeting.duration}</span>
-                          <span className="flex items-center gap-1">
-                            <TrendingUp className="w-3 h-3" />
-                            {meeting.actionItems} actions
-=======
                             {formatRecentDate(meeting.created_at)}
                           </span>
                           <span>{meeting.source_agent || "Unknown source"}</span>
                           <span className="flex items-center gap-1">
                             <TrendingUp className="w-3 h-3" />
                             {meeting.action_items.length} actions
->>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
                           </span>
                         </div>
                       </div>
                       <Badge className="bg-lightGreen/30 text-foreground text-xs">
-<<<<<<< HEAD
-                        Done
-=======
                         {meeting.status}
->>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
                       </Badge>
                     </div>
                   </Card>
                 ))}
               </div>
             </ScrollArea>
-<<<<<<< HEAD
-          </Card>
-        </div>
-=======
           )}
         </Card>
->>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
+
+        </div>
       </div>
     </div>
   );

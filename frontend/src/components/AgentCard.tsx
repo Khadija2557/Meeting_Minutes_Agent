@@ -54,7 +54,7 @@ export const AgentCard = ({
         {/* Avatar and Status */}
         <div className="flex items-start gap-4 mb-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-full overflow-hidden bg-muted shimmer">
+            <div className="w-16 h-16 rounded-full overflow-hidden bg-muted shimmer floating-animation">
               <img
                 src={avatar}
                 alt={name}

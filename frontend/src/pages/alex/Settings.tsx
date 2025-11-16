@@ -17,7 +17,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import alexAvatar from "@/assets/alex-avatar.png";
+import alexAvatar from "@/assets/meeting-followup-agent.png";
 
 interface SavedParticipant {
   id: string;
@@ -100,7 +100,7 @@ export default function Settings() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/alex")}
+            onClick={() => navigate("/alex/dashboard")}
             className="hover:glow-cyan"
           >
             <ArrowLeft className="w-5 h-5" />
