@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,110 +15,320 @@ import {
   Clock,
   FileAudio,
   FileText,
-  Users,
+  RefreshCw,
   Copy,
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import alexAvatar from "@/assets/alex-avatar.png";
-
-interface ActionItem {
-  task: string;
-  assignee: string;
-  dueDate: string;
-  status: "pending" | "completed";
-}
-
-interface MeetingData {
-  id: string;
-  title: string;
-  date: string;
-  duration: string;
-  participants: string[];
-  summary: string;
-  transcript: string;
-  actionItems: ActionItem[];
-}
+import { fetchMeeting } from "@/lib/api";
+import type { ActionItem, Meeting } from "@/types/api";
 
 export default function MeetingDetails() {
   const navigate = useNavigate();
   const { meetingId } = useParams();
   const [isEditingSummary, setIsEditingSummary] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [summaryDraft, setSummaryDraft] = useState("");
+  const [localActionItems, setLocalActionItems] = useState<ActionItem[]>([]);
 
-  const [meetingData, setMeetingData] = useState<MeetingData>({
-    id: meetingId || "M_47",
-    title: "Q4 Planning Meeting",
-    date: "January 15, 2025",
-    duration: "45 minutes",
-    participants: ["John Doe", "Jane Smith", "Mike Johnson"],
-    summary:
-      "The team discussed Q4 goals, resource allocation, and timeline adjustments. Key decisions were made regarding project priorities and team structure. The focus will be on improving product quality and customer satisfaction.",
-    transcript:
-      "[00:00] John: Good morning everyone, let's start with our Q4 planning.\n[00:15] Jane: I've prepared the resource allocation spreadsheet.\n[00:45] Mike: We should prioritize the customer feedback items.\n[01:30] John: Agreed. Let's set some clear milestones...\n[02:00] Jane: I'll coordinate with the design team on the new features.\n[03:15] Mike: We need to allocate more resources to testing.\n[04:00] John: Great points everyone. Let's schedule a follow-up next week.",
-    actionItems: [
-      {
-        task: "Finalize Q4 budget proposal",
-        assignee: "John Doe",
-        dueDate: "Jan 20, 2025",
-        status: "pending",
-      },
-      {
-        task: "Schedule follow-up with design team",
-        assignee: "Jane Smith",
-        dueDate: "Jan 18, 2025",
-        status: "pending",
-      },
-      {
-        task: "Review and update project timeline",
-        assignee: "Mike Johnson",
-        dueDate: "Jan 22, 2025",
-        status: "pending",
-      },
-      {
-        task: "Allocate additional testing resources",
-        assignee: "Mike Johnson",
-        dueDate: "Jan 25, 2025",
-        status: "pending",
-      },
-      {
-        task: "Prepare customer satisfaction metrics",
-        assignee: "Jane Smith",
-        dueDate: "Jan 19, 2025",
-        status: "pending",
-      },
-    ],
+  const numericMeetingId = Number(meetingId);
+  const isValidMeetingId = Number.isFinite(numericMeetingId);
+
+  const {
+    data: meeting,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<Meeting | undefined>({
+    queryKey: ["meeting", numericMeetingId],
+    queryFn: () => fetchMeeting(numericMeetingId),
+    enabled: isValidMeetingId,
   });
 
-  const toggleActionItemStatus = (index: number) => {
-    const updated = { ...meetingData };
-    updated.actionItems[index].status =
-      updated.actionItems[index].status === "pending" ? "completed" : "pending";
-    setMeetingData(updated);
-    toast.success(
-      `Action item marked as ${updated.actionItems[index].status}`
+  useEffect(() => {
+    if (meeting) {
+      setSummaryDraft(meeting.summary ?? "");
+      setLocalActionItems(meeting.action_items ?? []);
+    }
+  }, [meeting]);
+
+  const toggleActionItemStatus = (id: number) => {
+    setLocalActionItems((items) =>
+      items.map((item) => {
+        if (item.id !== id) {
+          return item;
+        }
+        const normalized = (item.status || "").toLowerCase();
+        const nextStatus = ["completed", "done"].includes(normalized)
+          ? "pending"
+          : "completed";
+        toast.success(`Action item marked as ${nextStatus}`);
+        return { ...item, status: nextStatus };
+      })
     );
   };
 
   const markAllAsDone = () => {
-    const updated = { ...meetingData };
-    updated.actionItems = updated.actionItems.map((item) => ({
-      ...item,
-      status: "completed",
-    }));
-    setMeetingData(updated);
+    if (!localActionItems.length) {
+      toast.info("No action items to update");
+      return;
+    }
+    setLocalActionItems((items) => items.map((item) => ({ ...item, status: "completed" })));
     toast.success("All action items marked as completed! 🎉");
   };
 
   const downloadSummary = () => {
-    toast.success("Downloading meeting summary...");
+    if (!meeting) {
+      toast.error("Meeting data is not available yet");
+      return;
+    }
+    const summaryContent = summaryDraft.trim() || meeting.summary?.trim();
+    if (!summaryContent) {
+      toast.error("Summary is not ready yet");
+      return;
+    }
+    const blob = new Blob(
+      [`Meeting: ${meeting.title} (ID ${meeting.id})\n\n${summaryContent}`],
+      { type: "text/plain" }
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `meeting-${meeting.id}-summary.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Summary download started");
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(meetingData.summary);
-    setCopied(true);
-    toast.success("Summary copied to clipboard!");
-    setTimeout(() => setCopied(false), 2000);
+  const copyToClipboard = async () => {
+    const textToCopy = summaryDraft.trim() || meeting?.summary?.trim();
+    if (!textToCopy) {
+      toast.error("No summary available to copy");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopied(true);
+      toast.success("Summary copied to clipboard!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error(error);
+      toast.error("Unable to copy summary");
+    }
+  };
+
+  const formatDueDate = (value: string | null) => {
+    if (!value) {
+      return "No due date";
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
+  };
+
+  const titleText = meeting?.title ?? "Meeting";
+  const subtitleText = meeting
+    ? `Meeting Details - #${meeting.id}`
+    : meetingId
+    ? `Meeting Details - #${meetingId}`
+    : "Meeting Details";
+
+  const renderContent = () => {
+    if (!isValidMeetingId) {
+      return (
+        <Card className="p-8 border-glow-blue">
+          <p className="text-muted-foreground">Invalid meeting identifier provided.</p>
+        </Card>
+      );
+    }
+
+    if (isLoading) {
+      return (
+        <Card className="p-8 text-center border-glow-purple">
+          <p className="text-muted-foreground">Loading meeting details...</p>
+        </Card>
+      );
+    }
+
+    if (isError) {
+      return (
+        <Card className="p-8 text-center space-y-4 border-glow-pink">
+          <p className="text-muted-foreground">Unable to load meeting details right now.</p>
+          <Button onClick={() => refetch()} className="mx-auto flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </Button>
+        </Card>
+      );
+    }
+
+    if (!meeting) {
+      return (
+        <Card className="p-8 border-glow-blue">
+          <p className="text-muted-foreground">Meeting not found.</p>
+        </Card>
+      );
+    }
+
+    const createdAt = new Date(meeting.created_at).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+
+    return (
+      <>
+        <Card className="p-6 border-glow-blue hover:border-glow-purple transition-all duration-500">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Created At</p>
+              <p className="font-semibold flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                {createdAt}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Status</p>
+              <Badge className="capitalize">{meeting.status}</Badge>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Source Agent</p>
+              <p className="font-semibold">
+                {meeting.source_agent || "Unknown"}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Tabs defaultValue="summary" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 border-glow-rainbow">
+            <TabsTrigger value="summary" className="gap-2">
+              <FileAudio className="w-4 h-4" />
+              Summary
+            </TabsTrigger>
+            <TabsTrigger value="transcript" className="gap-2">
+              <FileText className="w-4 h-4" />
+              Transcript
+            </TabsTrigger>
+            <TabsTrigger value="actions" className="gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              Action Items
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="summary">
+            <Card className="p-6 border-glow-green hover:border-glow-yellow transition-all duration-500">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <FileAudio className="w-5 h-5 text-primary" />
+                  Meeting Summary
+                </h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditingSummary(!isEditingSummary)}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  {isEditingSummary ? "Done" : "Edit"}
+                </Button>
+              </div>
+              {isEditingSummary ? (
+                <Textarea
+                  value={summaryDraft}
+                  onChange={(e) => setSummaryDraft(e.target.value)}
+                  className="min-h-[200px]"
+                />
+              ) : (
+                <ScrollArea className="h-[400px]">
+                  <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                    {summaryDraft || meeting.summary || "Summary will appear here once processing completes."}
+                  </p>
+                </ScrollArea>
+              )}
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="transcript">
+            <Card className="p-6 border-glow-pink hover:border-glow-blue transition-all duration-500">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                Full Transcript
+              </h3>
+              <ScrollArea className="h-[400px]">
+                <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-mono">
+                  {meeting.transcript || "Transcript will appear here once available."}
+                </pre>
+              </ScrollArea>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="actions">
+            <Card className="p-6 border-glow-purple hover:border-glow-pink transition-all duration-500">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
+                  Action Items ({localActionItems.length})
+                </h3>
+                <Button variant="outline" onClick={markAllAsDone} disabled={!localActionItems.length}>
+                  Mark All as Done
+                </Button>
+              </div>
+              {localActionItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No action items generated for this meeting yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {localActionItems.map((item, index) => {
+                    const normalized = (item.status || "").toLowerCase();
+                    const isCompleted = ["completed", "done"].includes(normalized);
+                    return (
+                      <Card
+                        key={item.id}
+                        className={`p-4 ${
+                          index % 3 === 0
+                            ? "border-glow-blue"
+                            : index % 3 === 1
+                            ? "border-glow-purple"
+                            : "border-glow-pink"
+                        } hover:scale-105 transition-all duration-300`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className={`font-medium mb-2 ${isCompleted ? "line-through text-muted-foreground" : ""}`}>
+                              {item.description}
+                            </p>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                              <span>Owner: {item.owner || "Unassigned"}</span>
+                              <span>Due: {formatDueDate(item.due_date)}</span>
+                            </div>
+                          </div>
+                          <Button
+                            variant={isCompleted ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => toggleActionItemStatus(item.id)}
+                            className={isCompleted ? "bg-lightGreen" : "border-lightYellow/40"}
+                          >
+                            {isCompleted ? (
+                              <>
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                Completed
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-4 h-4 mr-2" />
+                                Pending
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </>
+    );
   };
 
   return (
@@ -139,19 +350,17 @@ export default function MeetingDetails() {
               <img src={alexAvatar} alt="Alex" className="w-full h-full object-cover" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">{meetingData.title}</h1>
-              <p className="text-sm text-muted-foreground">
-                Meeting Details - {meetingData.id}
-              </p>
+              <h1 className="text-2xl font-bold">{titleText}</h1>
+              <p className="text-sm text-muted-foreground">{subtitleText}</p>
             </div>
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={downloadSummary}>
+            <Button variant="outline" onClick={downloadSummary} disabled={!meeting}>
               <Download className="w-4 h-4 mr-2" />
               Download
             </Button>
-            <Button onClick={copyToClipboard}>
+            <Button onClick={copyToClipboard} disabled={!summaryDraft.trim() && !meeting?.summary}>
               {copied ? (
                 <Check className="w-4 h-4 mr-2" />
               ) : (
@@ -162,163 +371,7 @@ export default function MeetingDetails() {
           </div>
         </div>
 
-        {/* Meeting Info */}
-        <Card className="p-6 border-glow-blue hover:border-glow-purple transition-all duration-500">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Date</p>
-              <p className="font-semibold flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                {meetingData.date}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Duration</p>
-              <p className="font-semibold">{meetingData.duration}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Participants</p>
-              <div className="flex flex-wrap gap-2">
-                {meetingData.participants.map((participant) => (
-                  <Badge key={participant} variant="secondary">
-                    {participant}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Tabs */}
-        <Tabs defaultValue="summary" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 border-glow-rainbow">
-            <TabsTrigger value="summary" className="gap-2">
-              <FileAudio className="w-4 h-4" />
-              Summary
-            </TabsTrigger>
-            <TabsTrigger value="transcript" className="gap-2">
-              <FileText className="w-4 h-4" />
-              Transcript
-            </TabsTrigger>
-            <TabsTrigger value="actions" className="gap-2">
-              <CheckCircle2 className="w-4 h-4" />
-              Action Items
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Summary Tab */}
-          <TabsContent value="summary">
-            <Card className="p-6 border-glow-green hover:border-glow-yellow transition-all duration-500">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <FileAudio className="w-5 h-5 text-primary" />
-                  Meeting Summary
-                </h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEditingSummary(!isEditingSummary)}
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  {isEditingSummary ? "Save" : "Edit"}
-                </Button>
-              </div>
-              {isEditingSummary ? (
-                <Textarea
-                  value={meetingData.summary}
-                  onChange={(e) =>
-                    setMeetingData({ ...meetingData, summary: e.target.value })
-                  }
-                  className="min-h-[200px]"
-                />
-              ) : (
-                <ScrollArea className="h-[400px]">
-                  <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                    {meetingData.summary}
-                  </p>
-                </ScrollArea>
-              )}
-            </Card>
-          </TabsContent>
-
-          {/* Transcript Tab */}
-          <TabsContent value="transcript">
-            <Card className="p-6 border-glow-pink hover:border-glow-blue transition-all duration-500">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" />
-                Full Transcript
-              </h3>
-              <ScrollArea className="h-[400px]">
-                <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-mono">
-                  {meetingData.transcript}
-                </pre>
-              </ScrollArea>
-            </Card>
-          </TabsContent>
-
-          {/* Action Items Tab */}
-          <TabsContent value="actions">
-            <Card className="p-6 border-glow-purple hover:border-glow-pink transition-all duration-500">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-primary" />
-                  Action Items ({meetingData.actionItems.length})
-                </h3>
-                <Button variant="outline" onClick={markAllAsDone}>
-                  Mark All as Done
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {meetingData.actionItems.map((item, index) => (
-                  <Card
-                    key={index}
-                    className={`p-4 ${
-                      index % 3 === 0
-                        ? "border-glow-blue"
-                        : index % 3 === 1
-                        ? "border-glow-purple"
-                        : "border-glow-pink"
-                    } hover:scale-105 transition-all duration-300`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className={`font-medium mb-2 ${item.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
-                          {item.task}
-                        </p>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span>Assignee: {item.assignee}</span>
-                          <span>Due: {item.dueDate}</span>
-                        </div>
-                      </div>
-                      <Button
-                        variant={item.status === "completed" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => toggleActionItemStatus(index)}
-                        className={
-                          item.status === "completed"
-                            ? "bg-lightGreen"
-                            : "border-lightYellow/40"
-                        }
-                      >
-                        {item.status === "completed" ? (
-                          <>
-                            <CheckCircle2 className="w-4 h-4 mr-2" />
-                            Completed
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="w-4 h-4 mr-2" />
-                            Pending
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        {renderContent()}
       </div>
     </div>
   );

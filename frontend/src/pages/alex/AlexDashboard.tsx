@@ -1,9 +1,15 @@
+<<<<<<< HEAD
 import { useEffect, useState } from "react";
+=======
+import { useMemo, useState } from "react";
+>>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
 import { useNavigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import {
   ArrowLeft,
@@ -16,8 +22,12 @@ import {
   Settings,
   Calendar,
   TrendingUp,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import alexAvatar from "@/assets/alex-avatar.png";
+<<<<<<< HEAD
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Cell, LabelList, ResponsiveContainer } from "recharts";
 
 function WeeklyCompletedBarChart() {
@@ -131,41 +141,63 @@ function AlexHiGreeting() {
     </div>
   );
 }
+=======
+import { useMeetingsQuery } from "@/hooks/useMeetingsQuery";
+import { runFollowupAgent } from "@/lib/api";
+import type { FollowupResponse } from "@/types/api";
+>>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
 
 export default function AlexDashboard() {
   const navigate = useNavigate();
-  const [stats] = useState({
-    totalMeetings: 47,
-    totalActionItems: 156,
-    pendingActionItems: 23,
+  const [followupTranscript, setFollowupTranscript] = useState("");
+  const [followupResult, setFollowupResult] = useState<FollowupResponse | null>(null);
+
+  const { data: meetings, isLoading, isError, refetch } = useMeetingsQuery();
+  const meetingList = meetings ?? [];
+
+  const stats = useMemo(() => {
+    const totalMeetings = meetingList.length;
+    const allActionItems = meetingList.flatMap((meeting) => meeting.action_items);
+    const totalActionItems = allActionItems.length;
+    const pendingActionItems = allActionItems.filter((item) => {
+      const normalized = (item.status || "").toLowerCase();
+      return !["done", "completed"].includes(normalized);
+    }).length;
+    return { totalMeetings, totalActionItems, pendingActionItems };
+  }, [meetingList]);
+
+  const recentMeetings = meetingList.slice(0, 3);
+  const formatRecentDate = (value: string) =>
+    new Date(value).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+
+  const followupMutation = useMutation({
+    mutationFn: ({ transcript }: { transcript: string }) =>
+      runFollowupAgent({ transcript, metadata: { source: "alex-dashboard" } }),
+    onSuccess: (data) => {
+      setFollowupResult(data);
+      toast.success("Follow-up generated");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to generate follow-up");
+    },
   });
 
-  const recentMeetings = [
-    {
-      id: "M_47",
-      title: "Q4 Planning Meeting",
-      date: "2025-01-15",
-      duration: "45 min",
-      actionItems: 5,
-      status: "completed",
-    },
-    {
-      id: "M_46",
-      title: "Product Review Session",
-      date: "2025-01-12",
-      duration: "30 min",
-      actionItems: 3,
-      status: "completed",
-    },
-    {
-      id: "M_45",
-      title: "Client Presentation",
-      date: "2025-01-10",
-      duration: "60 min",
-      actionItems: 7,
-      status: "completed",
-    },
-  ];
+  const handleFollowup = () => {
+    const trimmed = followupTranscript.trim();
+    if (!trimmed) {
+      toast.error("Please provide a transcript for Alex to analyze");
+      return;
+    }
+    followupMutation.mutate({ transcript: trimmed });
+  };
+
+  const clearFollowup = () => {
+    setFollowupTranscript("");
+    setFollowupResult(null);
+  };
 
   const menuItems = [
     { label: "Dashboard", path: "/alex" },
@@ -210,7 +242,9 @@ export default function AlexDashboard() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Meetings</p>
-                <p className="text-2xl font-bold text-blue">{stats.totalMeetings}</p>
+                <p className="text-2xl font-bold text-blue">
+                  {isLoading ? "--" : stats.totalMeetings}
+                </p>
               </div>
             </div>
           </Card>
@@ -222,7 +256,9 @@ export default function AlexDashboard() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Action Items</p>
-                <p className="text-2xl font-bold text-purple">{stats.totalActionItems}</p>
+                <p className="text-2xl font-bold text-purple">
+                  {isLoading ? "--" : stats.totalActionItems}
+                </p>
               </div>
             </div>
           </Card>
@@ -234,7 +270,9 @@ export default function AlexDashboard() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Pending</p>
-                <p className="text-2xl font-bold text-lightYellow">{stats.pendingActionItems}</p>
+                <p className="text-2xl font-bold text-lightYellow">
+                  {isLoading ? "--" : stats.pendingActionItems}
+                </p>
               </div>
             </div>
           </Card>
@@ -283,6 +321,7 @@ export default function AlexDashboard() {
           </Button>
         </div>
 
+<<<<<<< HEAD
         {/* Analytics + Recent Meetings */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Analytics */}
@@ -313,6 +352,103 @@ export default function AlexDashboard() {
               </Button>
             </div>
 
+=======
+        <Card className="p-5 border-glow-green hover:border-glow-blue transition-all duration-500 slide-in" style={{ animationDelay: "150ms" }}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold">Instant Follow-up</h2>
+              <p className="text-sm text-muted-foreground">Paste a transcript and let Alex summarize it without saving to history.</p>
+            </div>
+          </div>
+          <Textarea
+            placeholder="Paste transcript text here..."
+            value={followupTranscript}
+            onChange={(e) => setFollowupTranscript(e.target.value)}
+            className="min-h-[140px]"
+          />
+          <div className="flex flex-wrap gap-3 mt-4">
+            <Button
+              onClick={handleFollowup}
+              disabled={followupMutation.isPending || !followupTranscript.trim()}
+              className="flex items-center gap-2"
+            >
+              {followupMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Analyzing
+                </>
+              ) : (
+                "Generate Summary"
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={clearFollowup}
+              disabled={!followupTranscript && !followupResult}
+            >
+              Clear
+            </Button>
+          </div>
+          {followupResult && (
+            <div className="mt-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold mb-2">Summary</h3>
+                <p className="text-muted-foreground whitespace-pre-wrap">{followupResult.summary}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold mb-2">Action Items</h3>
+                {followupResult.action_items.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No action items detected.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {followupResult.action_items.map((item, idx) => (
+                      <Card key={`${item.description}-${idx}`} className="p-3 border-glow-purple">
+                        <p className="font-medium text-sm">{item.description}</p>
+                        <div className="text-xs text-muted-foreground flex flex-wrap gap-3 mt-1">
+                          {item.owner && <span>Owner: {item.owner}</span>}
+                          {item.due_date && <span>Due: {item.due_date}</span>}
+                          <span>Status: {item.status}</span>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Recent Meetings */}
+        <Card className="p-5 border-glow-pink hover:border-glow-blue transition-all duration-500 slide-in" style={{ animationDelay: "200ms" }}>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-primary" />
+              Recent Meetings
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/alex/history")}
+              className="hover:border-primary hover:text-primary transition-all"
+            >
+              View All
+            </Button>
+          </div>
+
+          {isLoading ? (
+            <div className="p-6 text-center text-muted-foreground">Loading meetings...</div>
+          ) : isError ? (
+            <div className="p-6 text-center space-y-3">
+              <p className="text-muted-foreground">Unable to load recent meetings.</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()} className="mx-auto flex items-center gap-2">
+                <RefreshCw className="w-4 h-4" />
+                Retry
+              </Button>
+            </div>
+          ) : recentMeetings.length === 0 ? (
+            <div className="p-6 text-center text-muted-foreground">No meetings processed yet.</div>
+          ) : (
+>>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
             <ScrollArea className="h-[280px]">
               <div className="space-y-3">
                 {recentMeetings.map((meeting, index) => (
@@ -329,25 +465,43 @@ export default function AlexDashboard() {
                         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
+<<<<<<< HEAD
                             {meeting.date}
                           </span>
                           <span>{meeting.duration}</span>
                           <span className="flex items-center gap-1">
                             <TrendingUp className="w-3 h-3" />
                             {meeting.actionItems} actions
+=======
+                            {formatRecentDate(meeting.created_at)}
+                          </span>
+                          <span>{meeting.source_agent || "Unknown source"}</span>
+                          <span className="flex items-center gap-1">
+                            <TrendingUp className="w-3 h-3" />
+                            {meeting.action_items.length} actions
+>>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
                           </span>
                         </div>
                       </div>
                       <Badge className="bg-lightGreen/30 text-foreground text-xs">
+<<<<<<< HEAD
                         Done
+=======
+                        {meeting.status}
+>>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
                       </Badge>
                     </div>
                   </Card>
                 ))}
               </div>
             </ScrollArea>
+<<<<<<< HEAD
           </Card>
         </div>
+=======
+          )}
+        </Card>
+>>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
       </div>
     </div>
   );

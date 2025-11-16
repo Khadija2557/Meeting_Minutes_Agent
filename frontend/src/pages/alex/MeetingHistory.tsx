@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,94 +20,55 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  ArrowLeft,
-  Search,
-  Filter,
-  Calendar,
-  Clock,
-  CheckCircle2,
-} from "lucide-react";
+import { ArrowLeft, Search, Calendar, Clock, CheckCircle2, RefreshCw } from "lucide-react";
 import alexAvatar from "@/assets/alex-avatar.png";
-
-interface Meeting {
-  id: string;
-  title: string;
-  date: string;
-  status: "completed" | "pending";
-  actionItems: number;
-  summary: string;
-  participants: string[];
-}
+import { useMeetingsQuery } from "@/hooks/useMeetingsQuery";
+import type { Meeting } from "@/types/api";
 
 export default function MeetingHistory() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [filterParticipant, setFilterParticipant] = useState("all");
+  const [filterSource, setFilterSource] = useState("all");
 
-  const meetings: Meeting[] = [
-    {
-      id: "M_47",
-      title: "Q4 Planning Meeting",
-      date: "2025-01-15",
-      status: "completed",
-      actionItems: 5,
-      summary: "Discussed Q4 goals, resource allocation, and timeline adjustments...",
-      participants: ["John Doe", "Jane Smith", "Mike Johnson"],
-    },
-    {
-      id: "M_46",
-      title: "Product Review Session",
-      date: "2025-01-12",
-      status: "completed",
-      actionItems: 3,
-      summary: "Reviewed product features, user feedback, and upcoming releases...",
-      participants: ["Jane Smith", "Sarah Williams"],
-    },
-    {
-      id: "M_45",
-      title: "Client Presentation",
-      date: "2025-01-10",
-      status: "completed",
-      actionItems: 7,
-      summary: "Presented project progress to client, discussed next steps...",
-      participants: ["John Doe", "Mike Johnson", "Emily Davis"],
-    },
-    {
-      id: "M_44",
-      title: "Team Sync Meeting",
-      date: "2025-01-08",
-      status: "completed",
-      actionItems: 4,
-      summary: "Weekly team synchronization, blockers discussion...",
-      participants: ["John Doe", "Jane Smith", "Mike Johnson", "Sarah Williams"],
-    },
-    {
-      id: "M_43",
-      title: "Budget Review",
-      date: "2025-01-05",
-      status: "completed",
-      actionItems: 6,
-      summary: "Reviewed Q1 budget allocation and approved expenditures...",
-      participants: ["John Doe", "Emily Davis"],
-    },
-  ];
+  const {
+    data: meetings,
+    isLoading,
+    isError,
+    refetch,
+  } = useMeetingsQuery();
 
-  const allParticipants = Array.from(
-    new Set(meetings.flatMap((m) => m.participants))
+  const meetingList: Meeting[] = meetings ?? [];
+
+  const allSources = useMemo(
+    () =>
+      Array.from(
+        new Set(meetingList.map((meeting) => meeting.source_agent || "Unknown"))
+      ).sort(),
+    [meetingList]
   );
 
-  const filteredMeetings = meetings.filter((meeting) => {
-    const matchesSearch =
-      meeting.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      meeting.summary.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = filterStatus === "all" || meeting.status === filterStatus;
-    const matchesParticipant =
-      filterParticipant === "all" || meeting.participants.includes(filterParticipant);
+  const filteredMeetings = useMemo(() => {
+    const searchValue = searchQuery.trim().toLowerCase();
+    return meetingList.filter((meeting) => {
+      const summaryText = meeting.summary?.toLowerCase() ?? "";
+      const matchesSearch =
+        !searchValue ||
+        meeting.title.toLowerCase().includes(searchValue) ||
+        summaryText.includes(searchValue) ||
+        `${meeting.id}`.includes(searchValue);
+      const matchesStatus = filterStatus === "all" || meeting.status === filterStatus;
+      const sourceValue = meeting.source_agent || "Unknown";
+      const matchesSource = filterSource === "all" || sourceValue === filterSource;
+      return matchesSearch && matchesStatus && matchesSource;
+    });
+  }, [meetingList, searchQuery, filterStatus, filterSource]);
 
-    return matchesSearch && matchesStatus && matchesParticipant;
-  });
+  const formatDate = (value: string) =>
+    new Date(value).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
 
   return (
     <div className="min-h-screen p-6">
@@ -138,7 +99,7 @@ export default function MeetingHistory() {
 
         {/* Filters */}
         <Card className="p-6 border-glow-purple hover:border-glow-blue transition-all duration-500">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -157,98 +118,123 @@ export default function MeetingHistory() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="done">Done</SelectItem>
+                <SelectItem value="processing">Processing</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
 
-            {/* Participant Filter */}
-            <Select value={filterParticipant} onValueChange={setFilterParticipant}>
+            {/* Source Filter */}
+            <Select value={filterSource} onValueChange={setFilterSource}>
               <SelectTrigger>
-                <SelectValue placeholder="Filter by participant" />
+                <SelectValue placeholder="Filter by source" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Participants</SelectItem>
-                {allParticipants.map((participant) => (
-                  <SelectItem key={participant} value={participant}>
-                    {participant}
+                <SelectItem value="all">All Sources</SelectItem>
+                {allSources.map((source) => (
+                  <SelectItem key={source} value={source}>
+                    {source}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+
+            <Button
+              variant="outline"
+              onClick={() => refetch()}
+              disabled={isLoading}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           </div>
         </Card>
 
         {/* Meetings Table */}
         <Card className="border-glow-pink hover:border-glow-yellow transition-all duration-500">
-          <ScrollArea className="h-[600px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Meeting Title</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Action Items</TableHead>
-                  <TableHead>Summary Preview</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMeetings.map((meeting, index) => (
-                  <TableRow
-                    key={meeting.id}
-                    className="cursor-pointer hover:bg-accent/50"
-                    onClick={() => navigate(`/alex/meeting/${meeting.id}`)}
-                  >
-                    <TableCell className="font-medium">{meeting.title}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                        {meeting.date}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={meeting.status === "completed" ? "bg-lightGreen" : "bg-lightYellow"}>
-                        {meeting.status === "completed" ? (
-                          <CheckCircle2 className="w-3 h-3 mr-1" />
-                        ) : (
-                          <Clock className="w-3 h-3 mr-1" />
-                        )}
-                        {meeting.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="border-blue/50">
-                        {meeting.actionItems}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {meeting.summary}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/alex/meeting/${meeting.id}`);
-                        }}
-                      >
-                        View Details
-                      </Button>
-                    </TableCell>
+          {isLoading ? (
+            <div className="p-12 text-center text-muted-foreground">Loading meetings...</div>
+          ) : isError ? (
+            <div className="p-12 text-center space-y-4">
+              <p className="text-muted-foreground">Unable to load meetings. Please try again.</p>
+              <Button onClick={() => refetch()} className="mx-auto">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          ) : filteredMeetings.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground">
+              No meetings found matching your filters.
+            </div>
+          ) : (
+            <ScrollArea className="h-[600px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Meeting Title</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Action Items</TableHead>
+                    <TableHead>Summary Preview</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ScrollArea>
+                </TableHeader>
+                <TableBody>
+                  {filteredMeetings.map((meeting) => {
+                    const isComplete = meeting.status === "done";
+                    return (
+                      <TableRow
+                        key={meeting.id}
+                        className="cursor-pointer hover:bg-accent/50"
+                        onClick={() => navigate(`/alex/meeting/${meeting.id}`)}
+                      >
+                        <TableCell className="font-medium">{meeting.title}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-muted-foreground" />
+                            {formatDate(meeting.created_at)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={isComplete ? "bg-lightGreen" : "bg-lightYellow"}>
+                            {isComplete ? (
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                            ) : (
+                              <Clock className="w-3 h-3 mr-1" />
+                            )}
+                            {meeting.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="border-blue/50">
+                            {meeting.action_items.length}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">
+                          {meeting.summary ?? "Processing..."}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/alex/meeting/${meeting.id}`);
+                            }}
+                          >
+                            View Details
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          )}
         </Card>
-
-        {filteredMeetings.length === 0 && (
-          <Card className="p-12 text-center border-glow-blue">
-            <p className="text-muted-foreground">No meetings found matching your filters.</p>
-          </Card>
-        )}
       </div>
     </div>
   );

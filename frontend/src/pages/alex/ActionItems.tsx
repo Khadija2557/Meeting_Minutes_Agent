@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,19 +26,16 @@ import {
   ListTodo,
   Calendar,
   User,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import alexAvatar from "@/assets/alex-avatar.png";
+import { useMeetingsQuery } from "@/hooks/useMeetingsQuery";
+import type { ActionItem as BackendActionItem } from "@/types/api";
 
-interface ActionItem {
-  id: string;
-  task: string;
-  assignedTo: string;
-  dueDate: string;
-  meetingId: string;
+interface EnrichedActionItem extends BackendActionItem {
+  meetingId: number;
   meetingTitle: string;
-  status: "pending" | "completed";
-  priority: "low" | "medium" | "high";
 }
 
 export default function ActionItems() {
@@ -47,110 +44,95 @@ export default function ActionItems() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterDueDate, setFilterDueDate] = useState("all");
 
-  const [actionItems, setActionItems] = useState<ActionItem[]>([
-    {
-      id: "A1",
-      task: "Finalize Q4 budget proposal",
-      assignedTo: "John Doe",
-      dueDate: "2025-01-20",
-      meetingId: "M_47",
-      meetingTitle: "Q4 Planning Meeting",
-      status: "pending",
-      priority: "high",
-    },
-    {
-      id: "A2",
-      task: "Schedule follow-up with design team",
-      assignedTo: "Jane Smith",
-      dueDate: "2025-01-18",
-      meetingId: "M_47",
-      meetingTitle: "Q4 Planning Meeting",
-      status: "pending",
-      priority: "medium",
-    },
-    {
-      id: "A3",
-      task: "Review and update project timeline",
-      assignedTo: "Mike Johnson",
-      dueDate: "2025-01-22",
-      meetingId: "M_47",
-      meetingTitle: "Q4 Planning Meeting",
-      status: "pending",
-      priority: "high",
-    },
-    {
-      id: "A4",
-      task: "Update product documentation",
-      assignedTo: "Jane Smith",
-      dueDate: "2025-01-19",
-      meetingId: "M_46",
-      meetingTitle: "Product Review Session",
-      status: "completed",
-      priority: "medium",
-    },
-    {
-      id: "A5",
-      task: "Send proposal to client",
-      assignedTo: "John Doe",
-      dueDate: "2025-01-16",
-      meetingId: "M_45",
-      meetingTitle: "Client Presentation",
-      status: "completed",
-      priority: "high",
-    },
-    {
-      id: "A6",
-      task: "Prepare demo for next meeting",
-      assignedTo: "Mike Johnson",
-      dueDate: "2025-01-25",
-      meetingId: "M_45",
-      meetingTitle: "Client Presentation",
-      status: "pending",
-      priority: "low",
-    },
-  ]);
+  const { data: meetings, isLoading, isError, refetch } = useMeetingsQuery();
+  const [items, setItems] = useState<EnrichedActionItem[]>([]);
 
-  const allAssignees = Array.from(new Set(actionItems.map((item) => item.assignedTo)));
-
-  const filteredItems = actionItems.filter((item) => {
-    const matchesAssignee = filterAssignee === "all" || item.assignedTo === filterAssignee;
-    const matchesStatus = filterStatus === "all" || item.status === filterStatus;
-    
-    let matchesDueDate = true;
-    if (filterDueDate === "overdue") {
-      matchesDueDate = new Date(item.dueDate) < new Date() && item.status === "pending";
-    } else if (filterDueDate === "today") {
-      matchesDueDate = item.dueDate === new Date().toISOString().split('T')[0];
-    } else if (filterDueDate === "week") {
-      const weekFromNow = new Date();
-      weekFromNow.setDate(weekFromNow.getDate() + 7);
-      matchesDueDate = new Date(item.dueDate) <= weekFromNow;
+  useEffect(() => {
+    if (meetings) {
+      const flattened: EnrichedActionItem[] = meetings.flatMap((meeting) =>
+        meeting.action_items.map((item) => ({
+          ...item,
+          meetingId: meeting.id,
+          meetingTitle: meeting.title,
+        }))
+      );
+      setItems(flattened);
     }
+  }, [meetings]);
 
-    return matchesAssignee && matchesStatus && matchesDueDate;
-  });
+  const isActionItemDone = (status: string) =>
+    ["completed", "done"].includes((status || "").toLowerCase());
 
-  const toggleStatus = (id: string) => {
-    setActionItems(
-      actionItems.map((item) =>
+  const formatDueDate = (value: string | null) => {
+    if (!value) return "No due date";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
+  };
+
+  const allAssignees = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          items
+            .map((item) => item.owner)
+            .filter((owner): owner is string => Boolean(owner && owner.trim()))
+        )
+      ),
+    [items]
+  );
+
+  const stats = useMemo(() => {
+    const total = items.length;
+    const completed = items.filter((item) => isActionItemDone(item.status)).length;
+    const pending = total - completed;
+    const overdue = items.filter((item) => {
+      if (!item.due_date || isActionItemDone(item.status)) {
+        return false;
+      }
+      const dueDate = new Date(item.due_date);
+      return !Number.isNaN(dueDate.getTime()) && dueDate < new Date();
+    }).length;
+    return { total, pending, completed, overdue };
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    const today = new Date();
+    const todayKey = today.toISOString().split("T")[0];
+    return items.filter((item) => {
+      const matchesAssignee = filterAssignee === "all" || item.owner === filterAssignee;
+      const done = isActionItemDone(item.status);
+      const matchesStatus =
+        filterStatus === "all" || (filterStatus === "completed" ? done : !done);
+
+      let matchesDueDate = true;
+      if (filterDueDate === "overdue") {
+        matchesDueDate =
+          item.due_date && !done ? new Date(item.due_date) < today : false;
+      } else if (filterDueDate === "today") {
+        matchesDueDate = item.due_date ? item.due_date.startsWith(todayKey) : false;
+      } else if (filterDueDate === "week") {
+        if (item.due_date) {
+          const weekFromNow = new Date();
+          weekFromNow.setDate(weekFromNow.getDate() + 7);
+          matchesDueDate = new Date(item.due_date) <= weekFromNow;
+        } else {
+          matchesDueDate = false;
+        }
+      }
+
+      return matchesAssignee && matchesStatus && matchesDueDate;
+    });
+  }, [items, filterAssignee, filterStatus, filterDueDate]);
+
+  const toggleStatus = (id: number) => {
+    setItems((prev) =>
+      prev.map((item) =>
         item.id === id
-          ? {
-              ...item,
-              status: item.status === "pending" ? "completed" : "pending",
-            }
+          ? { ...item, status: isActionItemDone(item.status) ? "pending" : "completed" }
           : item
       )
     );
     toast.success("Action item status updated!");
-  };
-
-  const stats = {
-    total: actionItems.length,
-    pending: actionItems.filter((i) => i.status === "pending").length,
-    completed: actionItems.filter((i) => i.status === "completed").length,
-    overdue: actionItems.filter(
-      (i) => new Date(i.dueDate) < new Date() && i.status === "pending"
-    ).length,
   };
 
   return (
@@ -189,7 +171,7 @@ export default function ActionItems() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-2xl font-bold">{isLoading ? "--" : stats.total}</p>
               </div>
             </div>
           </Card>
@@ -201,7 +183,9 @@ export default function ActionItems() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Pending</p>
-                <p className="text-2xl font-bold">{stats.pending}</p>
+                <p className="text-2xl font-bold text-lightYellow">
+                  {isLoading ? "--" : stats.pending}
+                </p>
               </div>
             </div>
           </Card>
@@ -213,19 +197,23 @@ export default function ActionItems() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Completed</p>
-                <p className="text-2xl font-bold">{stats.completed}</p>
+                <p className="text-2xl font-bold text-lightGreen">
+                  {isLoading ? "--" : stats.completed}
+                </p>
               </div>
             </div>
           </Card>
 
-          <Card className="p-4 border-glow-pink hover:border-glow-purple transition-all duration-500">
+          <Card className="p-4 border-glow-pink hover:border-glow-yellow transition-all duration-500">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-pink/20 flex items-center justify-center">
                 <Calendar className="w-5 h-5 text-pink" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Overdue</p>
-                <p className="text-2xl font-bold">{stats.overdue}</p>
+                <p className="text-2xl font-bold text-pink">
+                  {isLoading ? "--" : stats.overdue}
+                </p>
               </div>
             </div>
           </Card>
@@ -233,147 +221,138 @@ export default function ActionItems() {
 
         {/* Filters */}
         <Card className="p-6 border-glow-purple hover:border-glow-blue transition-all duration-500">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Assignee Filter */}
-            <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by assignee" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Assignees</SelectItem>
-                {allAssignees.map((assignee) => (
-                  <SelectItem key={assignee} value={assignee}>
-                    {assignee}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <User className="w-4 h-4" /> Assignee
+              </label>
+              <Select value={filterAssignee} onValueChange={setFilterAssignee}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by assignee" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {allAssignees.map((assignee) => (
+                    <SelectItem key={assignee} value={assignee}>
+                      {assignee}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            {/* Status Filter */}
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Status</label>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            {/* Due Date Filter */}
-            <Select value={filterDueDate} onValueChange={setFilterDueDate}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by due date" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Dates</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
-                <SelectItem value="today">Due Today</SelectItem>
-                <SelectItem value="week">Due This Week</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Due Date</label>
+              <Select value={filterDueDate} onValueChange={setFilterDueDate}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by due date" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="overdue">Overdue</SelectItem>
+                  <SelectItem value="today">Due Today</SelectItem>
+                  <SelectItem value="week">Due in 7 Days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Data</label>
+              <Button
+                variant="outline"
+                onClick={() => refetch()}
+                disabled={isLoading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
         </Card>
 
         {/* Action Items Table */}
         <Card className="border-glow-pink hover:border-glow-yellow transition-all duration-500">
-          <ScrollArea className="h-[500px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Task</TableHead>
-                  <TableHead>Assigned To</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Meeting</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredItems.map((item, index) => (
-                  <TableRow key={item.id} className="hover:bg-accent/50">
-                    <TableCell className={`font-medium ${item.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
-                      {item.task}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        {item.assignedTo}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                        {item.dueDate}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          item.priority === "high"
-                            ? "border-pink/50 text-pink"
-                            : item.priority === "medium"
-                            ? "border-lightYellow/50 text-lightYellow"
-                            : "border-lightGreen/50 text-lightGreen"
-                        }
-                      >
-                        {item.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell
-                      className="cursor-pointer hover:underline"
-                      onClick={() => navigate(`/alex/meeting/${item.meetingId}`)}
-                    >
-                      {item.meetingTitle}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant={item.status === "completed" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => toggleStatus(item.id)}
-                        className={
-                          item.status === "completed"
-                            ? "bg-lightGreen"
-                            : "border-lightYellow/40"
-                        }
-                      >
-                        {item.status === "completed" ? (
-                          <>
-                            <CheckCircle2 className="w-4 h-4 mr-2" />
-                            Done
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="w-4 h-4 mr-2" />
-                            Pending
-                          </>
-                        )}
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate(`/alex/meeting/${item.meetingId}`)}
-                      >
-                        View Meeting
-                      </Button>
-                    </TableCell>
+          {isLoading ? (
+            <div className="p-10 text-center text-muted-foreground">Loading action items...</div>
+          ) : isError ? (
+            <div className="p-10 text-center space-y-3">
+              <p className="text-muted-foreground">Unable to load action items.</p>
+              <Button onClick={() => refetch()} className="mx-auto flex items-center gap-2">
+                <RefreshCw className="w-4 h-4" />
+                Retry
+              </Button>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="p-10 text-center text-muted-foreground">
+              No action items match your filters.
+            </div>
+          ) : (
+            <ScrollArea className="h-[600px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Task</TableHead>
+                    <TableHead>Assignee</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Meeting</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ScrollArea>
+                </TableHeader>
+                <TableBody>
+                  {filteredItems.map((item) => {
+                    const done = isActionItemDone(item.status);
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.description}</TableCell>
+                        <TableCell>{item.owner || "Unassigned"}</TableCell>
+                        <TableCell>{formatDueDate(item.due_date)}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="link"
+                            className="p-0"
+                            onClick={() => navigate(`/alex/meeting/${item.meetingId}`)}
+                          >
+                            {item.meetingTitle}
+                          </Button>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={done ? "bg-lightGreen" : "bg-lightYellow"}>
+                            {done ? "Completed" : "Pending"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant={done ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => toggleStatus(item.id)}
+                          >
+                            {done ? "Mark Pending" : "Mark Done"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          )}
         </Card>
-
-        {filteredItems.length === 0 && (
-          <Card className="p-12 text-center border-glow-blue">
-            <p className="text-muted-foreground">No action items found matching your filters.</p>
-          </Card>
-        )}
       </div>
     </div>
   );

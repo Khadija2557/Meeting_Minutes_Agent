@@ -1,12 +1,11 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
   Upload,
@@ -15,14 +14,18 @@ import {
   Calendar,
   FileAudio,
   Users,
-  Mic,
-  Square,
   Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import alexAvatar from "@/assets/alex-avatar.png";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+<<<<<<< HEAD
 import { useSpeechToText } from "@/hooks/useSpeechToText";
+=======
+import { createMeeting, fetchMeeting } from "@/lib/api";
+import { MEETINGS_QUERY_KEY } from "@/hooks/useMeetingsQuery";
+>>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
 
 interface Participant {
   id: string;
@@ -31,11 +34,19 @@ interface Participant {
 }
 
 const processingSteps = [
-  { name: "Uploading audio...", icon: Upload, color: "text-blue" },
-  { name: "Generating transcript...", icon: FileAudio, color: "text-purple" },
-  { name: "Summarizing meeting...", icon: Loader2, color: "text-pink" },
-  { name: "Extracting action items...", icon: Loader2, color: "text-lightGreen" },
-];
+  { key: "uploading", name: "Uploading audio...", icon: Upload, color: "text-blue" },
+  { key: "pending", name: "Queued for processing", icon: FileAudio, color: "text-purple" },
+  { key: "processing", name: "Processing meeting...", icon: Loader2, color: "text-pink" },
+  { key: "done", name: "Summary ready", icon: CheckCircle2, color: "text-lightGreen" },
+] as const;
+
+const STATUS_PROGRESS: Record<string, number> = {
+  uploading: 20,
+  pending: 45,
+  processing: 80,
+  done: 100,
+  failed: 100,
+};
 
 export default function ProcessMeeting() {
   const navigate = useNavigate();
@@ -48,6 +59,10 @@ export default function ProcessMeeting() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [meetingStatus, setMeetingStatus] = useState<string | null>(null);
+  const [pollingMeetingId, setPollingMeetingId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     isRecording,
@@ -58,6 +73,7 @@ export default function ProcessMeeting() {
     resetRecording,
   } = useAudioRecorder();
 
+<<<<<<< HEAD
   // Browser Speech-to-Text (Web Speech API)
   const {
     supported: sttSupported,
@@ -69,6 +85,75 @@ export default function ProcessMeeting() {
     reset: resetStt,
     isListening,
   } = useSpeechToText();
+=======
+  const updateStatusIndicators = useCallback((status: string) => {
+    setMeetingStatus(status);
+    const stepIndex = processingSteps.findIndex((step) => step.key === status);
+    if (stepIndex >= 0) {
+      setCurrentStepIndex(stepIndex);
+    } else if (status === "failed") {
+      setCurrentStepIndex(processingSteps.length - 1);
+    }
+    setProgress(STATUS_PROGRESS[status] ?? 0);
+  }, []);
+
+  const pollMeeting = useCallback(
+    async (meetingId: number) => {
+      try {
+        const meeting = await fetchMeeting(meetingId);
+        updateStatusIndicators(meeting.status);
+
+        if (meeting.status === "done") {
+          toast.success("Meeting processed successfully! 🎉");
+          queryClient.invalidateQueries({ queryKey: MEETINGS_QUERY_KEY });
+          setIsProcessing(false);
+          setPollingMeetingId(null);
+          pollTimeoutRef.current = null;
+          setTimeout(() => navigate(`/alex/meeting/${meetingId}`), 500);
+          return;
+        }
+
+        if (meeting.status === "failed") {
+          toast.error("Processing failed. Please try again.");
+          setIsProcessing(false);
+          setPollingMeetingId(null);
+          pollTimeoutRef.current = null;
+          return;
+        }
+
+        pollTimeoutRef.current = setTimeout(() => pollMeeting(meetingId), 2500);
+      } catch (error) {
+        console.error(error);
+        toast.error(
+          `Unable to fetch meeting status: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
+        updateStatusIndicators("failed");
+        setIsProcessing(false);
+        setPollingMeetingId(null);
+        pollTimeoutRef.current = null;
+      }
+    },
+    [navigate, queryClient, updateStatusIndicators]
+  );
+
+  const createMeetingMutation = useMutation({
+    mutationFn: (formData: FormData) => createMeeting(formData),
+    onSuccess: ({ meeting_id, status }) => {
+      setPollingMeetingId(meeting_id);
+      updateStatusIndicators(status || "pending");
+      pollMeeting(meeting_id);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to start meeting processing");
+      setIsProcessing(false);
+      setMeetingStatus(null);
+      setProgress(0);
+      setCurrentStepIndex(0);
+    },
+  });
+>>>>>>> f822a7453becd9388bb22308fd57ce764e062a2c
 
   const addParticipant = () => {
     setParticipants([
@@ -139,29 +224,31 @@ export default function ProcessMeeting() {
       return;
     }
 
-    setIsProcessing(true);
-    setProgress(0);
-    setCurrentStepIndex(0);
+    const resolvedAudio =
+      audioFile ??
+      (audioBlob
+        ? new File([audioBlob], `recording-${Date.now()}.webm`, {
+            type: audioBlob.type || "audio/webm",
+          })
+        : null);
 
-    const steps = [
-      { duration: 1000 },
-      { duration: 2000 },
-      { duration: 1500 },
-      { duration: 1500 },
-    ];
-
-    let currentProgress = 0;
-    for (let i = 0; i < steps.length; i++) {
-      setCurrentStepIndex(i);
-      await new Promise((resolve) => setTimeout(resolve, steps[i].duration));
-      currentProgress += 25;
-      setProgress(currentProgress);
+    if (!resolvedAudio) {
+      toast.error("Audio input missing. Please upload or record a meeting.");
+      return;
     }
 
-    toast.success("Meeting processed successfully! 🎉");
-    setTimeout(() => {
-      navigate("/alex/meeting/M_48");
-    }, 500);
+    setIsProcessing(true);
+    updateStatusIndicators("uploading");
+
+    const formData = new FormData();
+    formData.append("title", meetingTitle);
+    formData.append("source_agent", "alex-dashboard");
+    formData.append("audio", resolvedAudio);
+    if (meetingDate) {
+      formData.append("meeting_date", meetingDate);
+    }
+
+    createMeetingMutation.mutate(formData);
   };
 
   const resetForm = () => {
@@ -170,8 +257,29 @@ export default function ProcessMeeting() {
     setAudioFile(null);
     resetRecording();
     setParticipants([{ id: "1", name: "", email: "" }]);
+    setIsProcessing(false);
+    setProgress(0);
+    setCurrentStepIndex(0);
+    setMeetingStatus(null);
+    setPollingMeetingId(null);
+    createMeetingMutation.reset();
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
     toast.info("Form reset");
   };
+
+  useEffect(() => {
+    return () => {
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const activeStep = processingSteps[currentStepIndex] ?? processingSteps[0];
+  const statusText = meetingStatus === "failed" ? "Processing failed" : activeStep.name;
 
   return (
     <div className="min-h-screen p-6">
@@ -417,10 +525,15 @@ export default function ProcessMeeting() {
                     <div className="w-8 h-8 rounded-full overflow-hidden animate-pulse">
                       <img src={alexAvatar} alt="Alex" className="w-full h-full" />
                     </div>
-                    <span className="text-muted-foreground">{processingSteps[currentStepIndex].name}</span>
+                    <span className="text-muted-foreground">{statusText}</span>
                   </div>
                   <span className="font-bold text-primary">{progress}%</span>
                 </div>
+                {pollingMeetingId && (
+                  <p className="text-xs text-muted-foreground text-right">
+                    Tracking meeting #{pollingMeetingId}
+                  </p>
+                )}
               </div>
             </div>
           </Card>
