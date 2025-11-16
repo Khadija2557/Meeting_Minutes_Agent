@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import alexAvatar from "@/assets/alex-avatar.png";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { useSpeechToText } from "@/hooks/useSpeechToText";
 
 interface Participant {
   id: string;
@@ -56,6 +57,18 @@ export default function ProcessMeeting() {
     stopRecording,
     resetRecording,
   } = useAudioRecorder();
+
+  // Browser Speech-to-Text (Web Speech API)
+  const {
+    supported: sttSupported,
+    status: sttStatus,
+    transcript,
+    error: sttError,
+    start: startStt,
+    stop: stopStt,
+    reset: resetStt,
+    isListening,
+  } = useSpeechToText();
 
   const addParticipant = () => {
     setParticipants([
@@ -215,6 +228,47 @@ export default function ProcessMeeting() {
                 onChange={(e) => setMeetingDate(e.target.value)}
                 className="border-glow-pink focus:border-glow-yellow"
               />
+            </div>
+
+            {/* Audio File Upload */}
+
+            {/* Live Speech-to-Text */}
+            <div className="space-y-2">
+              <Label className="text-base font-semibold flex items-center gap-2">
+                <Mic className="w-4 h-4" />
+                Live Speech-to-Text (Browser Microphone)
+              </Label>
+              <Card className="p-4 border-glow-blue">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {!sttSupported ? (
+                      <Badge variant="destructive">Not supported</Badge>
+                    ) : isListening ? (
+                      <Badge className="bg-lightGreen/30 text-foreground">Listening…</Badge>
+                    ) : (
+                      <Badge variant="outline">Idle</Badge>
+                    )}
+                    {sttError && <span className="text-destructive text-xs">{sttError}</span>}
+                  </div>
+
+                  <div className="flex gap-2 ml-auto">
+                    {!isListening ? (
+                      <Button onClick={startStt} variant="outline" className="border-glow-green">
+                        <Mic className="w-4 h-4 mr-2" /> Start
+                      </Button>
+                    ) : (
+                      <Button onClick={stopStt} variant="outline" className="border-glow-yellow">
+                        <Square className="w-4 h-4 mr-2" /> Stop
+                      </Button>
+                    )}
+                    <Button onClick={resetStt} variant="ghost">Reset</Button>
+                  </div>
+                </div>
+
+                <div className="mt-3 p-3 rounded-md border bg-muted/30 min-h-[64px] text-sm whitespace-pre-wrap">
+                  {transcript || (isListening ? "Listening…" : "Transcript will appear here…")}
+                </div>
+              </Card>
             </div>
 
             {/* Audio File Upload */}

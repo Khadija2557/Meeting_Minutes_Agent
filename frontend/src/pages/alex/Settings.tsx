@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,7 +27,9 @@ interface SavedParticipant {
 
 export default function Settings() {
   const navigate = useNavigate();
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    return document.documentElement.classList.contains("dark");
+  });
   const [savedParticipants, setSavedParticipants] = useState<SavedParticipant[]>([
     { id: "1", name: "John Doe", email: "john@example.com" },
     { id: "2", name: "Jane Smith", email: "jane@example.com" },
@@ -35,9 +37,33 @@ export default function Settings() {
   ]);
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
 
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    if (stored === "dark") {
+      document.documentElement.classList.add("dark");
+      setDarkMode(true);
+    } else if (stored === "light") {
+      document.documentElement.classList.remove("dark");
+      setDarkMode(false);
+    }
+  }, []);
+
+  const applyTheme = (enableDark: boolean) => {
+    const root = document.documentElement;
+    if (enableDark) {
+      root.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      root.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  };
+
   const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    toast.info(`Dark mode ${!darkMode ? "enabled" : "disabled"}`);
+    const next = !darkMode;
+    setDarkMode(next);
+    applyTheme(next);
+    toast.info(`Dark mode ${next ? "enabled" : "disabled"}`);
   };
 
   const addParticipant = () => {
