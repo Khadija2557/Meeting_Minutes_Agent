@@ -6,14 +6,22 @@ from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
 
-# Allow running ``python backend/app.py`` by making the project root importable
+# Handle both local development and deployment scenarios
 if __package__ is None:  # pragma: no cover - only used for direct script execution
     sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from backend.config import DefaultConfig
-from backend.database import init_db, init_engine, SessionLocal
-from backend.routes import register_blueprints
-from backend.services.background import BackgroundTaskRunner
+# Try importing with "backend." prefix (local development)
+# If that fails, import directly (Railway deployment where backend is root)
+try:
+    from backend.config import DefaultConfig
+    from backend.database import init_db, init_engine, SessionLocal
+    from backend.routes import register_blueprints
+    from backend.services.background import BackgroundTaskRunner
+except ModuleNotFoundError:
+    from config import DefaultConfig
+    from database import init_db, init_engine, SessionLocal
+    from routes import register_blueprints
+    from services.background import BackgroundTaskRunner
 
 
 load_dotenv()
