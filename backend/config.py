@@ -18,3 +18,7 @@ class DefaultConfig:
     STORAGE_DIR = Path(os.getenv("STORAGE_DIR", "backend/uploads"))
     TESTING = False
     MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100 MB uploads
+
+    # Supervisor Integration Agent settings
+    SUPERVISOR_TIMEOUT = int(os.getenv("SUPERVISOR_TIMEOUT", "30000"))  # 30 seconds in ms
+    SUPERVISOR_AGENT_NAME = os.getenv("SUPERVISOR_AGENT_NAME", "meeting_followup_agent")
