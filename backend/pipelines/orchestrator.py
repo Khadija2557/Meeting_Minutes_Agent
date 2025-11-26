@@ -6,11 +6,18 @@ from typing import Callable
 
 from sqlalchemy.orm import Session
 
-from backend.database import SessionLocal
-from backend.models import ActionItem, Meeting
-from backend.pipelines.action_items import extract_action_items
-from backend.pipelines.summarization import summarize_transcript
-from backend.pipelines.transcription import transcribe_audio
+try:
+    from backend.database import SessionLocal
+    from backend.models import ActionItem, Meeting
+    from backend.pipelines.action_items import extract_action_items
+    from backend.pipelines.summarization import summarize_transcript
+    from backend.pipelines.transcription import transcribe_audio
+except ModuleNotFoundError:
+    from database import SessionLocal
+    from models import ActionItem, Meeting
+    from pipelines.action_items import extract_action_items
+    from pipelines.summarization import summarize_transcript
+    from pipelines.transcription import transcribe_audio
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,10 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
-from backend.services.assembly import AssemblyAIClient, AssemblyAIError
+try:
+    from backend.services.assembly import AssemblyAIClient, AssemblyAIError
+except ModuleNotFoundError:
+    from services.assembly import AssemblyAIClient, AssemblyAIError
 
 class TranscriptionError(Exception):
     pass
