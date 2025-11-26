@@ -2,10 +2,17 @@ from __future__ import annotations
 
 from flask import Flask
 
-from backend.routes.agents import agents_bp
-from backend.routes.health import health_bp
-from backend.routes.meetings import meetings_bp
-from backend.routes.supervisor_adapter import supervisor_bp
+# Handle both local and deployment scenarios
+try:
+    from backend.routes.agents import agents_bp
+    from backend.routes.health import health_bp
+    from backend.routes.meetings import meetings_bp
+    from backend.routes.supervisor_adapter import supervisor_bp
+except ModuleNotFoundError:
+    from routes.agents import agents_bp
+    from routes.health import health_bp
+    from routes.meetings import meetings_bp
+    from routes.supervisor_adapter import supervisor_bp
 
 
 def register_blueprints(app: Flask) -> None:

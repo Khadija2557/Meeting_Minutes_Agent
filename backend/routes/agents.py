@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
-from backend.pipelines.action_items import extract_action_items
-from backend.pipelines.summarization import summarize_transcript
+try:
+    from backend.pipelines.action_items import extract_action_items
+    from backend.pipelines.summarization import summarize_transcript
+except ModuleNotFoundError:
+    from pipelines.action_items import extract_action_items
+    from pipelines.summarization import summarize_transcript
 
 agents_bp = Blueprint("agents", __name__)
 

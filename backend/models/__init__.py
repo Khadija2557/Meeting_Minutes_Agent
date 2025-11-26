@@ -6,7 +6,10 @@ from typing import List
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
-from backend.database import Base
+try:
+    from backend.database import Base
+except ModuleNotFoundError:
+    from database import Base
 
 
 class Meeting(Base):

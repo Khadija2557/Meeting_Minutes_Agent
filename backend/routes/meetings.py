@@ -2,10 +2,16 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
 
-from backend.database import SessionLocal
-from backend.models import Meeting
-from backend.pipelines.orchestrator import process_meeting
-from backend.services.storage import save_audio_file
+try:
+    from backend.database import SessionLocal
+    from backend.models import Meeting
+    from backend.pipelines.orchestrator import process_meeting
+    from backend.services.storage import save_audio_file
+except ModuleNotFoundError:
+    from database import SessionLocal
+    from models import Meeting
+    from pipelines.orchestrator import process_meeting
+    from services.storage import save_audio_file
 
 meetings_bp = Blueprint("meetings", __name__)
 

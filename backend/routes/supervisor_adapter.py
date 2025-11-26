@@ -9,14 +9,24 @@ import logging
 from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
-from backend.models.supervisor import (
-    ErrorModel,
-    OutputModel,
-    SupervisorAgentRequest,
-    SupervisorAgentResponse,
-)
-from backend.pipelines.action_items import ActionExtractionError, extract_action_items
-from backend.pipelines.summarization import SummarizationError, summarize_transcript
+try:
+    from backend.models.supervisor import (
+        ErrorModel,
+        OutputModel,
+        SupervisorAgentRequest,
+        SupervisorAgentResponse,
+    )
+    from backend.pipelines.action_items import ActionExtractionError, extract_action_items
+    from backend.pipelines.summarization import SummarizationError, summarize_transcript
+except ModuleNotFoundError:
+    from models.supervisor import (
+        ErrorModel,
+        OutputModel,
+        SupervisorAgentRequest,
+        SupervisorAgentResponse,
+    )
+    from pipelines.action_items import ActionExtractionError, extract_action_items
+    from pipelines.summarization import SummarizationError, summarize_transcript
 
 supervisor_bp = Blueprint("supervisor", __name__)
 logger = logging.getLogger(__name__)
