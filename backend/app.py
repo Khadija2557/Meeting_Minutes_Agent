@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 from pathlib import Path
@@ -26,32 +27,53 @@ except ModuleNotFoundError:
 
 load_dotenv()
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=LOG_LEVEL)
+logger = logging.getLogger("meeting_agent.app")
+logger.setLevel(LOG_LEVEL)
+
 
 def create_app(config_object: type | None = None) -> Flask:
     """Application factory used by tests and production."""
     app = Flask(__name__)
     config_cls = config_object or DefaultConfig
     app.config.from_object(config_cls)
+    logger.info("Creating Meeting Agent app using config %s", config_cls.__name__)
 
     storage_dir = Path(app.config.get("STORAGE_DIR", "backend/uploads"))
     storage_dir.mkdir(parents=True, exist_ok=True)
     app.config["STORAGE_DIR"] = storage_dir
+    logger.info("Storage directory set to %s", storage_dir)
 
     CORS(app)
 
-    init_engine(
-        database_url=app.config["SQLALCHEMY_DATABASE_URI"],
-        echo=app.config.get("SQLALCHEMY_ECHO", False),
-        force=bool(app.config.get("TESTING", False)),
-    )
-    init_db()
+    try:
+        init_engine(
+            database_url=app.config["SQLALCHEMY_DATABASE_URI"],
+            echo=app.config.get("SQLALCHEMY_ECHO", False),
+            force=bool(app.config.get("TESTING", False)),
+        )
+        logger.info(
+            "Database engine initialized (driver=%s)",
+            app.config["SQLALCHEMY_DATABASE_URI"].split(":", 1)[0],
+        )
+        init_db()
+        logger.info("Database schema ensured")
+    except Exception:
+        logger.exception("Database initialization failed")
+        raise
 
     background_runner = BackgroundTaskRunner(
         enabled=app.config.get("ENABLE_BACKGROUND_JOBS", True)
     )
     app.extensions["background_runner"] = background_runner
+    logger.info(
+        "Background runner enabled=%s",
+        app.config.get("ENABLE_BACKGROUND_JOBS", True),
+    )
 
     register_blueprints(app)
+    logger.info("Blueprints registered: %s", list(app.blueprints.keys()))
 
     @app.teardown_appcontext
     def shutdown_session(exception: Exception | None = None) -> None:
