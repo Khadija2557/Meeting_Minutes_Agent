@@ -7,3 +7,4 @@ backend/.env
 /backend/backend/uploads
 backend/models/__pycache__/__init__.cpython-311.pyc
 backend/models/__pycache__/supervisor.cpython-311.pyc
+/.venv
