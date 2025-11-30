@@ -26,6 +26,7 @@ def _meeting_payload(meeting: Meeting) -> dict:
         "transcript": meeting.transcript,
         "summary": meeting.summary,
         "source_agent": meeting.source_agent,
+        "error_message": meeting.error_message,
         "action_items": [
             {
                 "id": item.id,
@@ -85,8 +86,8 @@ def create_meeting():
         runner = current_app.extensions.get("background_runner")
         runner.submit(process_meeting, meeting.id)
 
-        refreshed = session.get(Meeting, meeting.id)
-        return jsonify({"meeting_id": meeting.id, "status": refreshed.status}), 201
+        session.refresh(meeting)
+        return jsonify(_meeting_payload(meeting)), 201
     finally:
         session.close()
 

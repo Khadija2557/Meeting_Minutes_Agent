@@ -24,6 +24,7 @@ class Meeting(Base):
     summary = Column(Text, nullable=True)
     status = Column(String(50), default="pending", nullable=False)
     source_agent = Column(String(255), nullable=True)
+    error_message = Column(Text, nullable=True)
 
     action_items: List["ActionItem"] = relationship(
         "ActionItem", back_populates="meeting", cascade="all, delete-orphan"

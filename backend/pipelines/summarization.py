@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import os
 import textwrap
 
 from langchain.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
+
+logger = logging.getLogger(__name__)
 
 class SummarizationError(Exception):
     pass
@@ -14,6 +17,8 @@ def summarize_transcript(transcript: str, max_sentences: int = 5) -> str:
     cleaned = transcript.strip()
     if not cleaned:
         raise SummarizationError("Transcript is empty")
+
+    logger.info("Summarizing transcript (%d characters)", len(cleaned))
 
     if os.getenv("MOCK_SUMMARY", "0") == "1":
         return textwrap.shorten(cleaned, width=500, placeholder="...")
@@ -26,11 +31,13 @@ def summarize_transcript(transcript: str, max_sentences: int = 5) -> str:
         [
             (
                 "system",
-                "You are a meeting assistant. Return a concise summary limited to {max_sentences} sentences.",
+                "You are a meeting assistant. Summarize the provided meeting transcript in {max_sentences} sentences or less. "
+                "Focus on key discussion points, decisions made, and important topics covered. "
+                "Return ONLY the summary text, nothing else.",
             ),
             (
                 "human",
-                "Transcript:\n{transcript}\n\nReturn only the summary text.",
+                "Meeting Transcript:\n\n{transcript}\n\nProvide a concise summary:",
             ),
         ]
     )
@@ -44,8 +51,10 @@ def summarize_transcript(transcript: str, max_sentences: int = 5) -> str:
     messages = prompt.format_messages(
         transcript=cleaned, max_sentences=max_sentences
     )
+    logger.debug("Invoking Gemini for summarization")
     response = llm.invoke(messages)
     content = getattr(response, "content", None) or ""
+    logger.info("Received summary response (%d characters)", len(content))
     if not content:
         raise SummarizationError("Gemini returned an empty summary")
     return content.strip()

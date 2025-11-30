@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from urllib.parse import urlparse
@@ -9,20 +10,30 @@ try:
 except ModuleNotFoundError:
     from services.assembly import AssemblyAIClient, AssemblyAIError
 
+logger = logging.getLogger(__name__)
+
 class TranscriptionError(Exception):
     pass
 
 
 def transcribe_audio(file_path: str, model_name: str | None = None) -> str:
+    logger.info("Starting transcription for file: %s", file_path)
+
     if os.getenv("MOCK_TRANSCRIPTION", "0") == "1":
         name = Path(file_path).name if file_path else "unknown"
         return f"Mock transcript for {name}"
 
     provider = os.getenv("TRANSCRIPTION_PROVIDER", "assemblyai").lower()
+    logger.info("Using transcription provider: %s", provider)
+
     if provider == "assemblyai":
-        return _transcribe_with_assemblyai(file_path, model_name)
+        result = _transcribe_with_assemblyai(file_path, model_name)
+        logger.info("Transcription completed (%d characters)", len(result))
+        return result
     if provider == "whisper":
-        return _transcribe_with_whisper(file_path, model_name)
+        result = _transcribe_with_whisper(file_path, model_name)
+        logger.info("Transcription completed (%d characters)", len(result))
+        return result
     raise TranscriptionError(f"Unsupported transcription provider: {provider}")
 
 
