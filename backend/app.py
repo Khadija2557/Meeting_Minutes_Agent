@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 # Handle both local development and deployment scenarios
@@ -45,7 +45,32 @@ def create_app(config_object: type | None = None) -> Flask:
     app.config["STORAGE_DIR"] = storage_dir
     logger.info("Storage directory set to %s", storage_dir)
 
-    CORS(app)
+    # Configure CORS with debug logging
+    CORS(app, resources={r"/*": {"origins": "*"}})
+    logger.info("CORS enabled for all origins")
+
+    # Add request logging middleware
+    @app.before_request
+    def log_request():
+        logger.info(
+            ">> %s %s from %s | Content-Type: %s | Content-Length: %s",
+            request.method,
+            request.path,
+            request.remote_addr,
+            request.content_type,
+            request.content_length,
+        )
+
+    @app.after_request
+    def log_response(response):
+        logger.info(
+            "<< %s %s -> %s %s",
+            request.method,
+            request.path,
+            response.status_code,
+            response.status,
+        )
+        return response
 
     try:
         init_engine(
@@ -72,8 +97,50 @@ def create_app(config_object: type | None = None) -> Flask:
         app.config.get("ENABLE_BACKGROUND_JOBS", True),
     )
 
+    # Add a root endpoint
+    @app.route("/", methods=["GET"])
+    def root():
+        return jsonify({
+            "service": "Meeting Minutes Agent API",
+            "version": "1.0.0",
+            "endpoints": {
+                "health": "/health",
+                "meetings": {
+                    "list": "GET /meetings",
+                    "create": "POST /meetings",
+                    "get": "GET /meetings/<id>"
+                }
+            },
+            "status": "running"
+        }), 200
+
     register_blueprints(app)
     logger.info("Blueprints registered: %s", list(app.blueprints.keys()))
+
+    # Error handlers
+    @app.errorhandler(400)
+    def bad_request(e):
+        logger.error("Bad Request (400): %s", str(e))
+        return jsonify({"error": "Bad Request", "message": str(e)}), 400
+
+    @app.errorhandler(404)
+    def not_found(e):
+        logger.warning("Not Found (404): %s %s", request.method, request.path)
+        return jsonify({"error": "Not Found", "path": request.path}), 404
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        logger.exception("Internal Server Error (500): %s", str(e))
+        return jsonify({"error": "Internal Server Error", "message": str(e)}), 500
+
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        logger.exception("Unhandled exception: %s", str(e))
+        return jsonify({
+            "error": "Unexpected error",
+            "message": str(e),
+            "type": type(e).__name__
+        }), 500
 
     @app.teardown_appcontext
     def shutdown_session(exception: Exception | None = None) -> None:
@@ -89,4 +156,24 @@ def get_background_runner(app: Flask) -> BackgroundTaskRunner:
 
 if __name__ == "__main__":
     flask_app = create_app()
-    flask_app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False)
+    port = int(os.getenv("PORT", 5000))
+    host = os.getenv("HOST", "0.0.0.0")
+    debug = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+
+    logger.info("=" * 60)
+    logger.info("Starting Meeting Minutes Agent")
+    logger.info("=" * 60)
+    logger.info("Host: %s", host)
+    logger.info("Port: %s", port)
+    logger.info("Debug: %s", debug)
+    logger.info("Log Level: %s", LOG_LEVEL)
+    logger.info("=" * 60)
+    logger.info("Available Endpoints:")
+    logger.info("  GET  / - API info")
+    logger.info("  GET  /health - Health check")
+    logger.info("  GET  /meetings - List meetings")
+    logger.info("  POST /meetings - Create meeting (accepts audio file or transcript)")
+    logger.info("  GET  /meetings/<id> - Get meeting details")
+    logger.info("=" * 60)
+
+    flask_app.run(host=host, port=port, debug=debug)

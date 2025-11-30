@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from flask import Blueprint, current_app, jsonify, request
 
 try:
@@ -14,6 +16,7 @@ except ModuleNotFoundError:
     from services.storage import save_audio_file
 
 meetings_bp = Blueprint("meetings", __name__)
+logger = logging.getLogger(__name__)
 
 
 def _meeting_payload(meeting: Meeting) -> dict:
@@ -56,23 +59,46 @@ def list_meetings():
 
 @meetings_bp.route("/meetings", methods=["POST"])
 def create_meeting():
+    logger.info("Creating new meeting - Content-Type: %s", request.content_type)
     session = SessionLocal()
     try:
+        # Parse request data
         payload = request.get_json(silent=True)
         if payload is None and request.form:
+            logger.info("Using form data (multipart)")
             payload = request.form.to_dict()
         payload = payload or {}
+        logger.debug("Payload keys: %s", list(payload.keys()))
+
+        # Handle audio file upload
         audio_file = request.files.get("audio") if request.files else None
         audio_path = None
         if audio_file:
-            audio_path = save_audio_file(audio_file, current_app.config["STORAGE_DIR"])
+            logger.info("Audio file uploaded: %s (size: %s bytes)", audio_file.filename, audio_file.content_length)
+            try:
+                audio_path = save_audio_file(audio_file, current_app.config["STORAGE_DIR"])
+                logger.info("Audio saved to: %s", audio_path)
+            except Exception as e:
+                logger.error("Failed to save audio file: %s", str(e))
+                return jsonify({"error": f"Failed to save audio file: {str(e)}"}), 500
         elif payload.get("audio_url"):
             audio_path = payload["audio_url"]
+            logger.info("Using audio URL: %s", audio_path)
 
+        # Get transcript
         transcript = payload.get("transcript")
-        if not transcript and not audio_path:
-            return jsonify({"error": "Provide a transcript or an audio file"}), 400
+        if transcript:
+            logger.info("Transcript provided: %d characters", len(transcript))
 
+        # Validate input
+        if not transcript and not audio_path:
+            logger.warning("No transcript or audio file provided")
+            return jsonify({
+                "error": "Provide a transcript or an audio file",
+                "details": "Send either 'transcript' field with text, or 'audio' file in multipart/form-data"
+            }), 400
+
+        # Create meeting record
         meeting = Meeting(
             title=payload.get("title") or "Untitled Meeting",
             audio_url=str(audio_path) if audio_path else None,
@@ -82,12 +108,25 @@ def create_meeting():
         )
         session.add(meeting)
         session.commit()
+        logger.info("Created meeting ID: %s", meeting.id)
 
+        # Submit for background processing
         runner = current_app.extensions.get("background_runner")
-        runner.submit(process_meeting, meeting.id)
+        if runner:
+            runner.submit(process_meeting, meeting.id)
+            logger.info("Submitted meeting %s for processing", meeting.id)
+        else:
+            logger.warning("Background runner not available")
 
         session.refresh(meeting)
         return jsonify(_meeting_payload(meeting)), 201
+    except Exception as e:
+        logger.exception("Error creating meeting: %s", str(e))
+        return jsonify({
+            "error": "Failed to create meeting",
+            "message": str(e),
+            "type": type(e).__name__
+        }), 500
     finally:
         session.close()
 
