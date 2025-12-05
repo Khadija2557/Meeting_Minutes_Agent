@@ -15,14 +15,16 @@ if __package__ is None:  # pragma: no cover - only used for direct script execut
 # If that fails, import directly (Railway deployment where backend is root)
 try:
     from backend.config import DefaultConfig
-    from backend.database import init_db, init_engine, SessionLocal
+    from backend.database import init_db, init_engine, SessionLocal, get_session
     from backend.routes import register_blueprints
     from backend.services.background import BackgroundTaskRunner
+    from backend.migrations import run_migrations
 except ModuleNotFoundError:
     from config import DefaultConfig
-    from database import init_db, init_engine, SessionLocal
+    from database import init_db, init_engine, SessionLocal, get_session
     from routes import register_blueprints
     from services.background import BackgroundTaskRunner
+    from migrations import run_migrations
 
 
 load_dotenv()
@@ -84,6 +86,13 @@ def create_app(config_object: type | None = None) -> Flask:
         )
         init_db()
         logger.info("Database schema ensured")
+
+        # Run migrations to add any missing columns
+        session = get_session()
+        try:
+            run_migrations(session)
+        finally:
+            session.close()
     except Exception:
         logger.exception("Database initialization failed")
         raise
