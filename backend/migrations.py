@@ -3,6 +3,7 @@ Simple database migration utilities.
 Safely adds missing columns to existing tables.
 """
 import logging
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def add_column_if_not_exists(session, table_name: str, column_name: str, column_
     try:
         # Check if column exists (SQLite specific)
         result = session.execute(
-            f"SELECT COUNT(*) FROM pragma_table_info('{table_name}') WHERE name='{column_name}'"
+            text(f"SELECT COUNT(*) FROM pragma_table_info('{table_name}') WHERE name='{column_name}'")
         )
         exists = result.scalar() > 0
 
@@ -33,7 +34,7 @@ def add_column_if_not_exists(session, table_name: str, column_name: str, column_
 
         # Add the column
         logger.info(f"Adding column {table_name}.{column_name}...")
-        session.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
+        session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"))
         session.commit()
         logger.info(f"✓ Added column {table_name}.{column_name}")
         return True

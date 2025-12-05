@@ -5,6 +5,7 @@ Run this script to update your database schema without losing data.
 import logging
 import sys
 from pathlib import Path
+from sqlalchemy import text
 
 # Handle import paths
 sys.path.insert(0, str(Path(__file__).parent))
@@ -26,7 +27,7 @@ def add_column_if_not_exists(table_name: str, column_name: str, column_definitio
     try:
         # Check if column exists by querying table info
         result = session.execute(
-            f"SELECT COUNT(*) FROM pragma_table_info('{table_name}') WHERE name='{column_name}'"
+            text(f"SELECT COUNT(*) FROM pragma_table_info('{table_name}') WHERE name='{column_name}'")
         )
         exists = result.scalar() > 0
 
@@ -36,7 +37,7 @@ def add_column_if_not_exists(table_name: str, column_name: str, column_definitio
 
         # Add the column
         logger.info(f"Adding column {table_name}.{column_name}...")
-        session.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
+        session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"))
         session.commit()
         logger.info(f"✓ Successfully added {table_name}.{column_name}")
         return True
